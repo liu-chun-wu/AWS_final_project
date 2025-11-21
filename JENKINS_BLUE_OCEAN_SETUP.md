@@ -505,6 +505,281 @@ docker exec -it jenkins-local /bin/bash
 
 ---
 
+## 🔔 Webhook Automation (GitHub → Jenkins)
+
+### Overview
+
+Automatically trigger Jenkins builds when pushing to the Jeffery branch using GitHub webhooks + ngrok.
+
+**Why Webhooks?**
+- ✅ Instant builds on every commit
+- ✅ No manual "Run" button clicking
+- ✅ Real-time CI/CD feedback
+- ✅ Better developer experience
+
+---
+
+### Prerequisites
+
+- ✅ Jenkins running locally on port 8080
+- ✅ GitHub repository with admin access
+- ✅ ngrok installed (`brew install ngrok`)
+- ✅ GitHub Personal Access Token created
+
+---
+
+### Setup Steps
+
+#### 1. Start ngrok Tunnel
+
+```bash
+# Configure ngrok (one-time)
+ngrok config add-authtoken YOUR_NGROK_TOKEN
+
+# Start tunnel (keep running)
+ngrok http 8080
+```
+
+**Copy the HTTPS forwarding URL:**
+```
+Forwarding: https://xxxx-xxxx-xxxx.ngrok-free.dev -> http://localhost:8080
+```
+
+**Important:** Keep the ngrok terminal window open! If you close it, the URL will stop working.
+
+---
+
+#### 2. Configure GitHub Webhook
+
+1. **Go to:** https://github.com/YOUR-USERNAME/AWS_final_project
+2. **Settings** → **Webhooks** → **Add webhook**
+3. **Payload URL:** `https://YOUR-NGROK-URL.ngrok-free.dev/github-webhook/`
+   - ⚠️ Must end with `/github-webhook/` (trailing slash required!)
+4. **Content type:** `application/json`
+5. **Secret:** Leave blank
+6. **Events:** Select "Let me select individual events"
+   - ☑ **Pushes** only
+   - ☐ Uncheck all others
+7. ☑ **Active**
+8. **Add webhook**
+
+**Verify:** Should see green checkmark and "Ping" delivery status 200 OK
+
+---
+
+#### 3. Enable Webhook Trigger in Jenkins
+
+1. **Jenkins** → Your pipeline → **Configure**
+2. **Build Triggers** section
+3. ☑ Check: **"GitHub hook trigger for GITScm polling"**
+4. **Save**
+
+---
+
+#### 4. Branch Filtering (Already Configured)
+
+The Jenkinsfile includes a "Branch Check" stage that ensures only Jeffery branch builds proceed:
+
+```groovy
+stage('Branch Check') {
+    steps {
+        script {
+            def branchName = env.GIT_BRANCH ?: 'unknown'
+            if (!branchName.contains('Jeffery')) {
+                currentBuild.result = 'NOT_BUILT'
+                error("Skipping build: This pipeline only runs on Jeffery branch")
+            }
+            echo "✅ Branch check passed"
+        }
+    }
+}
+```
+
+**Behavior:**
+- Push to `Jeffery` → Build runs all 6 stages
+- Push to `main` → Build skips after "Branch Check"
+- Push to `feature/*` → Build skips after "Branch Check"
+
+---
+
+### Testing the Webhook
+
+```bash
+# Make sure you're on Jeffery branch
+git checkout Jeffery
+
+# Make a test change
+echo "# Test webhook" >> README.md
+
+# Commit and push
+git add README.md
+git commit -m "Test: Webhook automation"
+git push origin Jeffery
+```
+
+**Expected Result:**
+- Jenkins starts building **immediately** (within 2-3 seconds)
+- Blue Ocean shows new build in activity feed
+- All 6 stages execute (Checkout → Branch Check → Setup → Install → Test → Build)
+- Total time: ~2 minutes
+- Docker image `aws-lab-flask-demo:X` created
+
+---
+
+### Troubleshooting Webhooks
+
+#### Webhook shows 403 or 404 error
+
+**Problem:** GitHub can't reach Jenkins
+
+**Solutions:**
+```bash
+# 1. Verify ngrok is running
+# Check ngrok terminal - should show "Session Status: online"
+
+# 2. Test ngrok URL in browser
+# Open: https://your-ngrok-url.ngrok-free.dev
+# Should show Jenkins login page
+
+# 3. Verify webhook URL ends with /github-webhook/
+# Correct:   https://xxxx.ngrok-free.dev/github-webhook/
+# Incorrect: https://xxxx.ngrok-free.dev/github-webhook
+```
+
+---
+
+#### Webhook delivers but Jenkins doesn't build
+
+**Problem:** Webhook trigger not enabled
+
+**Solutions:**
+1. Jenkins → Pipeline → Configure
+2. Check: ☑ "GitHub hook trigger for GITScm polling"
+3. Save and retry
+
+---
+
+#### ngrok URL expired or changed
+
+**Problem:** Free ngrok URLs change on restart
+
+**What happened:**
+- ngrok session ended (timeout, computer sleep, etc.)
+- New ngrok session = new URL
+
+**Solution:**
+```bash
+# 1. Restart ngrok
+ngrok http 8080
+
+# 2. Copy new URL
+
+# 3. Update GitHub webhook
+# Settings → Webhooks → Edit → Update Payload URL → Update webhook
+```
+
+**To avoid this:** Keep ngrok running continuously, or upgrade to ngrok paid plan for static URL
+
+---
+
+#### Build triggers for wrong branch
+
+**Check:**
+1. View build logs in Blue Ocean
+2. Look for "Branch Check" stage
+3. Should show: "Current branch: origin/Jeffery"
+4. If wrong branch, Jenkinsfile will exit early
+
+**Verify Jenkinsfile:**
+```groovy
+if (!branchName.contains('Jeffery')) {
+    error("Skipping build...")  // Non-Jeffery branches stop here
+}
+```
+
+---
+
+### Webhook Best Practices
+
+**✅ Do:**
+- Keep ngrok terminal running during development
+- Test webhook after setup (make a commit)
+- Check "Recent Deliveries" in GitHub webhook settings
+- Monitor Jenkins build queue for auto-triggered builds
+
+**❌ Don't:**
+- Close ngrok terminal (will break webhook)
+- Forget trailing slash in webhook URL
+- Use webhook for production (upgrade to EC2-hosted Jenkins)
+- Expose sensitive data in public ngrok URL
+
+---
+
+### Alternative: SCM Polling (No Webhook)
+
+If ngrok is not available, use SCM polling:
+
+**Jenkins Configuration:**
+1. Pipeline → Configure
+2. Build Triggers → ☑ "Poll SCM"
+3. Schedule: `H/15 * * * *` (every 15 minutes)
+4. Save
+
+**Pros:** Works without ngrok
+**Cons:** 15-minute delay, higher GitHub API usage
+
+---
+
+### ngrok Session Management
+
+**Keep ngrok running:**
+```bash
+# Option 1: Dedicated terminal
+# Just keep the terminal open
+
+# Option 2: Run in background (macOS/Linux)
+nohup ngrok http 8080 > ngrok.log 2>&1 &
+
+# View log
+tail -f ngrok.log
+
+# Stop ngrok
+pkill ngrok
+```
+
+**Check ngrok status:**
+```bash
+# View all active tunnels
+curl http://localhost:4040/api/tunnels | jq
+
+# Web UI
+open http://localhost:4040
+```
+
+---
+
+### Webhook Payload Example
+
+When you push to GitHub, it sends this to Jenkins:
+
+```json
+{
+  "ref": "refs/heads/Jeffery",
+  "repository": {
+    "name": "AWS_final_project",
+    "full_name": "liu-chun-wu/AWS_final_project"
+  },
+  "pusher": {
+    "name": "liu-chun-wu"
+  },
+  "commits": [...]
+}
+```
+
+Jenkins parses `ref` to determine branch and triggers build if "GitHub hook trigger" is enabled.
+
+---
+
 ## 📖 Additional Resources
 
 - **Blue Ocean Documentation**: https://www.jenkins.io/doc/book/blueocean/

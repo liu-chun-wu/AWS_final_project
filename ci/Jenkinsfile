@@ -17,6 +17,27 @@ pipeline {
             }
         }
 
+        stage('Branch Check') {
+            steps {
+                script {
+                    def branchName = env.GIT_BRANCH ?: 'unknown'
+                    echo "============================================"
+                    echo "Current branch: ${branchName}"
+                    echo "============================================"
+
+                    if (!branchName.contains('Jeffery')) {
+                        currentBuild.result = 'NOT_BUILT'
+                        error("⚠️  Skipping build: This pipeline only runs on Jeffery branch\n" +
+                              "    Current branch: ${branchName}\n" +
+                              "    Allowed branch: Jeffery")
+                    }
+
+                    echo "✅ Branch check passed - proceeding with Jeffery branch build"
+                    echo "============================================"
+                }
+            }
+        }
+
         stage('Setup Python Environment') {
             steps {
                 echo 'Setting up Python virtual environment...'
