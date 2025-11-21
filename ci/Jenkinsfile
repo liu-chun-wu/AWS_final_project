@@ -1,0 +1,141 @@
+pipeline {
+    agent any
+
+    environment {
+        IMAGE_NAME = 'aws-lab-flask-demo'
+        IMAGE_TAG = "${BUILD_NUMBER}"
+        // ECR_REGISTRY will be configured in Jenkins credentials for AWS phase
+        // ECR_REGISTRY = '<account-id>.dkr.ecr.us-east-1.amazonaws.com'
+    }
+
+    stages {
+        stage('Checkout') {
+            steps {
+                echo 'Checking out source code from repository...'
+                checkout scm
+                echo 'Source code checked out successfully'
+            }
+        }
+
+        stage('Setup Python Environment') {
+            steps {
+                echo 'Setting up Python virtual environment...'
+                sh '''
+                    cd backend
+                    python3 -m venv .venv
+                    . .venv/bin/activate
+                    pip install --upgrade pip
+                    echo "Python environment setup complete"
+                '''
+            }
+        }
+
+        stage('Install Dependencies') {
+            steps {
+                echo 'Installing Python dependencies from requirements.txt...'
+                sh '''
+                    cd backend
+                    . .venv/bin/activate
+                    pip install -r requirements.txt
+                    echo "Dependencies installed successfully"
+                '''
+            }
+        }
+
+        stage('Run Tests') {
+            steps {
+                echo 'Running test suite...'
+                sh '''
+                    cd backend
+                    . .venv/bin/activate
+                    echo "Running unit tests..."
+                    pytest tests/unit/ -v
+                    echo "Running integration tests..."
+                    pytest tests/integration/ -v
+                    echo "All tests passed successfully"
+                '''
+            }
+        }
+
+        stage('Build Docker Image') {
+            steps {
+                echo 'Building Docker image...'
+                sh '''
+                    docker build -t ${IMAGE_NAME}:${IMAGE_TAG} backend/
+                    docker tag ${IMAGE_NAME}:${IMAGE_TAG} ${IMAGE_NAME}:latest
+                    echo "Docker image built successfully: ${IMAGE_NAME}:${IMAGE_TAG}"
+                '''
+            }
+        }
+
+        // AWS DEPLOYMENT STAGES (Uncomment for Phase 4)
+        // These stages will be used when deploying to AWS
+
+        // stage('Login to ECR') {
+        //     when {
+        //         branch 'main'  // Only deploy from main branch
+        //     }
+        //     steps {
+        //         echo 'Logging into Amazon ECR...'
+        //         sh '''
+        //             aws ecr get-login-password --region us-east-1 | \
+        //             docker login --username AWS --password-stdin ${ECR_REGISTRY}
+        //         '''
+        //     }
+        // }
+
+        // stage('Tag & Push to ECR') {
+        //     when {
+        //         branch 'main'
+        //     }
+        //     steps {
+        //         echo 'Pushing image to ECR...'
+        //         sh '''
+        //             docker tag ${IMAGE_NAME}:${IMAGE_TAG} ${ECR_REGISTRY}/${IMAGE_NAME}:${IMAGE_TAG}
+        //             docker tag ${IMAGE_NAME}:${IMAGE_TAG} ${ECR_REGISTRY}/${IMAGE_NAME}:latest
+        //
+        //             docker push ${ECR_REGISTRY}/${IMAGE_NAME}:${IMAGE_TAG}
+        //             docker push ${ECR_REGISTRY}/${IMAGE_NAME}:latest
+        //             echo "Image pushed to ECR successfully"
+        //         '''
+        //     }
+        // }
+
+        // stage('Deploy to Lambda') {
+        //     when {
+        //         branch 'main'
+        //     }
+        //     steps {
+        //         echo 'Deploying to AWS Lambda via SAM...'
+        //         sh '''
+        //             cd aws
+        //             sam build
+        //             sam deploy --no-confirm-changeset --no-fail-on-empty-changeset
+        //             echo "Deployment to Lambda completed"
+        //         '''
+        //     }
+        // }
+    }
+
+    post {
+        success {
+            echo '✅ Pipeline completed successfully!'
+            echo "Docker image ${IMAGE_NAME}:${IMAGE_TAG} is ready"
+        }
+        failure {
+            echo '❌ Pipeline failed. Check logs for details.'
+            echo 'Common issues:'
+            echo '  - Tests failing: Check test output above'
+            echo '  - Docker build failing: Check Dockerfile syntax'
+            echo '  - Dependencies missing: Verify requirements.txt'
+        }
+        always {
+            echo 'Cleaning up...'
+            sh '''
+                cd backend
+                rm -rf .venv || true
+                echo "Cleanup completed"
+            '''
+        }
+    }
+}
