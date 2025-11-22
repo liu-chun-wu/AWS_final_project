@@ -14,3 +14,8 @@ capabilities = "CAPABILITY_IAM"
 image_repositories = []
 # Add your ECR repository here when deploying:
 # image_repositories = ["FlaskDemoFunction=<account-id>.dkr.ecr.us-east-1.amazonaws.com/aws-lab-flask-demo"]
+resolve_s3 = true
+disable_rollback = true
+
+[default.global.parameters]
+region = "us-east-1"

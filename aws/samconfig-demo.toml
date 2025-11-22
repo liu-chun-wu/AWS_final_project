@@ -19,9 +19,7 @@ s3_prefix = "flask-demo-backend"
 region = "us-east-1"
 confirm_changeset = true
 capabilities = "CAPABILITY_IAM"
-image_repositories = ["FlaskDemoFunction=536245021900.dkr.ecr.us-east-1.amazonaws.com/aws-lab-flask-demo"]
-# ECR repository will be set dynamically by scripts/Jenkinsfile
-# Format: image_repositories = ["FlaskDemoFunction=<account-id>.dkr.ecr.us-east-1.amazonaws.com/aws-lab-flask-demo"]
+# Image repositories resolved automatically via --resolve-image-repos flag in deployment script
 
 [default.build]
 [default.build.parameters]

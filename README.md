@@ -1,8 +1,8 @@
 # AWS Learner Lab Flask CI/CD Demo
 
-**Phase 6 COMPLETE** - Full end-to-end automated CI/CD pipeline with AWS Lambda deployment
+**Phase 7 COMPLETE** - Production-ready CI/CD with Jenkins EC2, separated CI/CD pipelines, and organized scripts
 
-A comprehensive demonstration project showcasing a complete CI/CD pipeline from local Flask development to automated AWS Lambda deployment with branch-based deployment strategy and webhook automation.
+A comprehensive demonstration project showcasing a complete CI/CD pipeline from local Flask development to automated AWS Lambda deployment with Jenkins on EC2, CI/CD separation, branch-based deployment strategy, and comprehensive automation.
 
 ## Project Overview
 
@@ -26,14 +26,31 @@ This project demonstrates a **production-ready CI/CD pipeline** with:
 
 ## Architecture
 
-### Progressive Implementation (6 Phases)
+### Progressive Implementation (8 Phases)
 
-1. ✅ **Phase 0** - Planning & specification
-2. ✅ **Phase 1** - Local Flask REST API
-3. ✅ **Phase 2** - Docker containerization
-4. ✅ **Phase 3** - Local Jenkins CI/CD
-5. ✅ **Phase 4** - GitHub webhook automation
-6. ✅ **Phase 6** - **Complete AWS deployment automation** (CURRENT)
+**Philosophy:** Prove → Codify → Automate *(test manually BEFORE automating with Jenkins)*
+
+1. ✅ **Phase 1** - Local Flask REST API
+2. ✅ **Phase 2** - Docker containerization
+3. ✅ **Phase 3a** - **Manual CI testing** (build/push WITHOUT Jenkins) ⚡ NEW
+4. ✅ **Phase 3b** - **Manual CD testing** (deploy/verify WITHOUT Jenkins) ⚡ NEW
+5. ✅ **Phase 4** - **Jenkinsfile preparation** (define pipelines as code) ⚡ NEW
+6. ✅ **Phase 5** - **Jenkins EC2 deployment** (one-time, pulls from Git)
+7. ✅ **Phase 6** - **Jenkins pipeline testing** (validate CI and CD separately)
+8. ✅ **Phase 7** - **End-to-end automation** (webhooks → Jenkins → AWS)
+9. ✅ **Phase 8** - **Implementation order refinement** (CURRENT)
+
+### Phase 8 Highlights
+
+- **Prove → Codify → Automate**: Manual testing BEFORE Jenkins deployment
+- **One-Time EC2 Deploy**: No redeploy cycles (67-75% time savings)
+- **Git-Committed Pipelines**: Jenkinsfile-CI and Jenkinsfile-CD in version control
+- **Separate Testing**: Validate CI (build/push) and CD (deploy/verify) independently
+- **Higher Confidence**: Jenkins automates proven steps (we already know they work!)
+- **Better IaC**: Pipeline definitions are code, not Jenkins UI configuration
+- **Folder Clarity**: `local-ci-only` vs `aws-ci-cd` for explicit purpose
+- **Rollback Capability**: Deploy any previous ECR image version
+- **Cost Management**: Start/stop EC2 scripts for budget control
 
 ### Branch-Based CI/CD Strategy
 
@@ -74,7 +91,8 @@ aws-lab-flask-ci-cd/
 │   └── Dockerfile
 │
 ├── ci/
-│   └── Jenkinsfile        # Parameterized pipeline (demo vs prod)
+│   ├── Jenkinsfile-CI     # CI pipeline (test, build, push)
+│   └── Jenkinsfile-CD     # CD pipeline (deploy, verify)
 │
 ├── aws/
 │   ├── template.yaml      # SAM infrastructure template
@@ -82,18 +100,28 @@ aws-lab-flask-ci-cd/
 │   └── samconfig-prod.toml   # Production deployment config
 │
 ├── scripts/
-│   ├── local/             # Local development scripts
+│   ├── local-ci-only/     # Local CI scripts (no AWS deployment)
 │   │   ├── setup-jenkins.sh
 │   │   ├── test-local.sh
 │   │   └── build-local.sh
-│   └── aws/               # AWS deployment automation
-│       ├── 01-check-prerequisites.sh
-│       ├── 02-setup-ecr.sh
-│       ├── 03-build-and-push.sh
-│       ├── 04-deploy-sam.sh
-│       ├── 05-verify-deployment.sh
-│       ├── check-aws-status.sh
-│       └── 99-cleanup-all.sh
+│   └── aws-ci-cd/         # Full CI/CD pipeline in AWS
+│       ├── 10-check-prerequisites.sh    # Setup: Verify AWS access
+│       ├── 11-setup-ecr.sh              # Setup: Create ECR repo
+│       ├── 12-setup-jenkins-ec2.sh      # Setup: Launch Jenkins on EC2
+│       ├── 13-configure-jenkins-jobs.sh # Setup: Create CI/CD jobs
+│       ├── 20-ci-build-and-push.sh      # CI: Build + push image
+│       ├── 21-ci-validate-image.sh      # CI: Verify image in ECR
+│       ├── 30-cd-validate-sam.sh        # CD: Validate SAM template
+│       ├── 31-cd-deploy-sam.sh          # CD: Deploy to Lambda
+│       ├── 32-cd-verify-deployment.sh   # CD: Test endpoints
+│       ├── 33-cd-redeploy-image.sh      # CD: Redeploy existing image
+│       ├── 34-cd-rollback.sh            # CD: Rollback to previous
+│       ├── 90-check-aws-status.sh       # Utility: Check resources
+│       ├── 91-check-jenkins-status.sh   # Utility: Check Jenkins EC2
+│       ├── 92-view-cd-logs.sh           # Utility: View deployment logs
+│       ├── 93-start-jenkins-ec2.sh      # Utility: Start EC2
+│       ├── 94-stop-jenkins-ec2.sh       # Utility: Stop EC2
+│       └── 99-cleanup-all.sh            # Cleanup: Delete everything
 │
 ├── specs/                 # Complete planning documentation
 ├── BRANCH_STRATEGY.md     # Detailed workflow guide
@@ -118,7 +146,7 @@ aws-lab-flask-ci-cd/
 #### Step 1: Local Jenkins Setup
 ```bash
 # One-time setup: Start Jenkins with all prerequisites
-./scripts/local/setup-jenkins.sh
+./scripts/local-ci-only/setup-jenkins.sh
 
 # Access Jenkins at http://localhost:8080
 # Follow on-screen instructions to configure pipeline
@@ -131,7 +159,7 @@ git checkout Jeffery
 # ... edit code ...
 
 # Test locally (optional but recommended)
-./scripts/local/test-local.sh --demo
+./scripts/local-ci-only/test-local.sh --demo
 
 # Commit and push (triggers Jenkins CI automatically via webhook)
 git add .
@@ -162,48 +190,142 @@ git push origin main
 
 ### Option 2: Manual Deployment (No Jenkins)
 
-#### AWS Setup (One-Time)
+#### Phase 1-2: Infrastructure Setup (One-Time)
 ```bash
 # 1. Verify AWS environment
-./scripts/aws/01-check-prerequisites.sh
+./scripts/aws-ci-cd/10-check-prerequisites.sh
 
 # 2. Create ECR repository
-./scripts/aws/02-setup-ecr.sh
+./scripts/aws-ci-cd/11-setup-ecr.sh
 ```
 
-#### Deploy to AWS
+#### Phase 3: Manual SAM Validation (Critical Gate)
 ```bash
-# 3. Build and push Docker image to ECR
-./scripts/aws/03-build-and-push.sh
+# IMPORTANT: Validate SAM works manually before Jenkins automation
 
-# 4. Deploy to Lambda via SAM
-./scripts/aws/04-deploy-sam.sh
+# 3. Build and push first Docker image
+./scripts/aws-ci-cd/20-ci-build-and-push.sh --demo
 
-# 5. Verify deployment
-./scripts/aws/05-verify-deployment.sh
+# 4. Validate SAM template
+./scripts/aws-ci-cd/30-cd-validate-sam.sh --demo
+
+# 5. Deploy to Lambda manually (first time)
+./scripts/aws-ci-cd/31-cd-deploy-sam.sh --demo
+
+# 6. Verify deployment works
+./scripts/aws-ci-cd/32-cd-verify-deployment.sh --demo
+
+# ✅ If all succeed, proceed to Phase 4
 ```
 
-#### Check Status Anytime
+#### Phase 4: Jenkins on EC2 (Automation)
 ```bash
-# See all AWS resources and costs
-./scripts/aws/check-aws-status.sh
+# 7. Launch Jenkins on EC2 instance
+./scripts/aws-ci-cd/12-setup-jenkins-ec2.sh --demo
+
+# 8. Configure CI and CD Jenkins jobs
+./scripts/aws-ci-cd/13-configure-jenkins-jobs.sh --demo
+
+# ✅ Now push to GitHub triggers full CI/CD automatically!
+```
+
+#### Daily Operations (After Setup)
+```bash
+# Normal workflow: Just push to GitHub
+git push origin Jeffery  # Triggers CI → CD to demo-backend
+
+# Check AWS resources status
+./scripts/aws-ci-cd/90-check-aws-status.sh --demo
+
+# Check Jenkins EC2 status
+./scripts/aws-ci-cd/91-check-jenkins-status.sh --demo
+
+# View deployment logs (if CD fails)
+./scripts/aws-ci-cd/92-view-cd-logs.sh --demo
+```
+
+#### Recovery Operations
+```bash
+# Rollback to previous version
+./scripts/aws-ci-cd/34-cd-rollback.sh --demo
+
+# Redeploy existing image (without rebuild)
+./scripts/aws-ci-cd/33-cd-redeploy-image.sh --demo --image-tag jeffery-42
+
+# Manual deployment (if Jenkins down)
+./scripts/aws-ci-cd/20-ci-build-and-push.sh --demo
+./scripts/aws-ci-cd/31-cd-deploy-sam.sh --demo
+```
+
+#### Cost Management
+```bash
+# Stop EC2 Jenkins when not in use (save $15-20/month)
+./scripts/aws-ci-cd/94-stop-jenkins-ec2.sh --demo
+
+# Start EC2 Jenkins when needed
+./scripts/aws-ci-cd/93-start-jenkins-ec2.sh --demo
 ```
 
 #### Cleanup When Done
 ```bash
 # Delete all AWS resources to avoid costs
-./scripts/aws/99-cleanup-all.sh
+./scripts/aws-ci-cd/99-cleanup-all.sh --demo
 ```
+
+## Script Organization
+
+### Folder Structure
+
+```
+scripts/
+├── local-ci-only/    # CI testing without AWS deployment
+│   ├── setup-jenkins.sh
+│   ├── test-local.sh
+│   └── build-local.sh
+│
+└── aws-ci-cd/        # Full CI/CD pipeline in AWS
+    ├── 10-19: Infrastructure setup (one-time)
+    ├── 20-29: CI operations (build, test, push)
+    ├── 30-39: CD operations (deploy, verify, rollback)
+    └── 90-99: Utilities and cleanup
+```
+
+### Script Numbering Convention
+
+- **10-19**: Infrastructure Setup (run once)
+  - 10-check-prerequisites.sh
+  - 11-setup-ecr.sh
+  - 12-setup-jenkins-ec2.sh
+  - 13-configure-jenkins-jobs.sh
+
+- **20-29**: CI Operations (build/test/push)
+  - 20-ci-build-and-push.sh
+  - 21-ci-validate-image.sh
+
+- **30-39**: CD Operations (deploy/verify/rollback)
+  - 30-cd-validate-sam.sh
+  - 31-cd-deploy-sam.sh
+  - 32-cd-verify-deployment.sh
+  - 33-cd-redeploy-image.sh
+  - 34-cd-rollback.sh
+
+- **90-99**: Utilities and Cleanup
+  - 90-check-aws-status.sh
+  - 91-check-jenkins-status.sh
+  - 92-view-cd-logs.sh
+  - 93-start-jenkins-ec2.sh
+  - 94-stop-jenkins-ec2.sh
+  - 99-cleanup-all.sh
 
 ## Dual Backend Usage
 
 ### Demo Backend (Validation)
 ```bash
 # Test the demo Flask app
-./scripts/local/test-local.sh --demo
+./scripts/local-ci-only/test-local.sh --demo
 
 # Build demo Docker image
-./scripts/local/build-local.sh --demo
+./scripts/local-ci-only/build-local.sh --demo
 
 # Used for: CI/CD validation, testing pipeline
 ```
@@ -211,10 +333,10 @@ git push origin main
 ### Production Backend (Your Service)
 ```bash
 # Test your production service
-./scripts/local/test-local.sh
+./scripts/local-ci-only/test-local.sh
 
 # Build production Docker image
-./scripts/local/build-local.sh
+./scripts/local-ci-only/build-local.sh
 
 # Used for: Real production deployments
 ```
@@ -280,7 +402,7 @@ curl -X POST http://localhost:8000/echo \
 git checkout Jeffery
 
 # 2. Make changes and test locally
-./scripts/local/test-local.sh --demo
+./scripts/local-ci-only/test-local.sh --demo
 
 # 3. Commit and push (Jenkins runs CI automatically)
 git add .
@@ -307,7 +429,7 @@ git push origin main
 # 3. Jenkins deploys to AWS automatically
 
 # 4. Verify deployment
-./scripts/aws/05-verify-deployment.sh
+./scripts/aws-ci-cd/05-verify-deployment.sh
 ```
 
 ### Fixing Production Issues
@@ -335,9 +457,9 @@ git push origin main
 
 | Script | Purpose | Usage |
 |--------|---------|-------|
-| `scripts/local/setup-jenkins.sh` | Setup Jenkins container | One-time setup |
-| `scripts/local/test-local.sh` | Run pytest tests | Before commits |
-| `scripts/local/build-local.sh` | Build Docker image | Test builds |
+| `scripts/local-ci-only/setup-jenkins.sh` | Setup Jenkins container | One-time setup |
+| `scripts/local-ci-only/test-local.sh` | Run pytest tests | Before commits |
+| `scripts/local-ci-only/build-local.sh` | Build Docker image | Test builds |
 
 ### AWS Deployment Scripts
 
@@ -388,14 +510,14 @@ See [scripts/README.md](scripts/README.md) for comprehensive documentation.
 - **CloudWatch:** Free tier (5GB/month)
 - **Total:** ~$0.03-0.12/month for light usage
 
-**Recommendation:** Run `./scripts/aws/99-cleanup-all.sh` between testing sessions.
+**Recommendation:** Run `./scripts/aws-ci-cd/99-cleanup-all.sh` between testing sessions.
 
 ## Troubleshooting
 
 ### Tests Fail Locally
 ```bash
 # Run verbose tests to see failures
-./scripts/local/test-local.sh --demo
+./scripts/local-ci-only/test-local.sh --demo
 
 # Check specific test file
 cd demo-backend
@@ -409,7 +531,7 @@ docker ps
 
 # Clear cache and rebuild
 docker system prune -a
-./scripts/local/build-local.sh --demo
+./scripts/local-ci-only/build-local.sh --demo
 ```
 
 ### AWS Credentials Expired (Learner Lab)
@@ -433,7 +555,7 @@ docker logs jenkins-local
 ### ECR Authentication Failed
 ```bash
 # Re-authenticate to ECR
-./scripts/aws/03-build-and-push.sh
+./scripts/aws-ci-cd/03-build-and-push.sh
 # Script handles authentication automatically
 ```
 
@@ -451,11 +573,11 @@ docker logs jenkins-local
 
 ### Testing the Complete Pipeline
 
-1. **Local Tests:** `./scripts/local/test-local.sh --demo`
+1. **Local Tests:** `./scripts/local-ci-only/test-local.sh --demo`
 2. **Jeffery CI:** `git push origin Jeffery` (should build but not deploy)
 3. **Main Deployment:** `git push origin main` (should deploy to AWS)
-4. **API Test:** `./scripts/aws/05-verify-deployment.sh`
-5. **Cleanup:** `./scripts/aws/99-cleanup-all.sh`
+4. **API Test:** `./scripts/aws-ci-cd/05-verify-deployment.sh`
+5. **Cleanup:** `./scripts/aws-ci-cd/99-cleanup-all.sh`
 
 ## Additional Documentation
 

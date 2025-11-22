@@ -40,7 +40,7 @@ git checkout Jeffery
 # ... edit code ...
 
 # 2. Test locally (optional but recommended)
-./scripts/local/test-local.sh
+./scripts/local-ci-only/test-local.sh
 
 # 3. Commit and push (triggers Jenkins CI automatically)
 git add .
@@ -184,25 +184,25 @@ If you want to deploy manually without Jenkins:
 ### Deploy to AWS Manually
 ```bash
 # Prerequisites
-./scripts/aws/01-check-prerequisites.sh
+./scripts/aws-ci-cd/01-check-prerequisites.sh
 
 # Create ECR repository (one-time)
-./scripts/aws/02-setup-ecr.sh
+./scripts/aws-ci-cd/02-setup-ecr.sh
 
 # Build and push image
-./scripts/aws/03-build-and-push.sh
+./scripts/aws-ci-cd/03-build-and-push.sh
 
 # Deploy to AWS
-./scripts/aws/04-deploy-sam.sh
+./scripts/aws-ci-cd/04-deploy-sam.sh
 
 # Verify deployment
-./scripts/aws/05-verify-deployment.sh
+./scripts/aws-ci-cd/05-verify-deployment.sh
 ```
 
 ### Cleanup
 ```bash
 # Remove all AWS resources
-./scripts/aws/99-cleanup-all.sh
+./scripts/aws-ci-cd/99-cleanup-all.sh
 ```
 
 ---
@@ -254,7 +254,7 @@ git push
 
 ### ✅ DO
 - Work on Jeffery branch for all development
-- Run `./scripts/local/test-local.sh` before pushing
+- Run `./scripts/local-ci-only/test-local.sh` before pushing
 - Wait for Jeffery CI to pass before merging to main
 - Review deployment outputs after main branch builds
 - Clean up AWS resources when done testing
@@ -282,7 +282,40 @@ git push
 - **CloudWatch Logs:** Free tier (5GB/month)
 - **Total:** ~$0.03-0.12/month for development usage
 
-**Recommendation:** Delete AWS resources between testing sessions using `./scripts/aws/99-cleanup-all.sh`
+**Recommendation:** Delete AWS resources between testing sessions using `./scripts/aws-ci-cd/99-cleanup-all.sh --demo`
+
+---
+
+## Script Organization
+
+### Folder Structure
+
+**scripts/local-ci-only/**
+- Used by: Local Jenkins (Jeffery branch)
+- Purpose: CI testing without AWS deployment
+- Scripts:
+  - `setup-jenkins.sh` - Setup local Jenkins container
+  - `test-local.sh` - Run tests locally
+  - `build-local.sh` - Build Docker image locally
+
+**scripts/aws-ci-cd/**
+- Used by: EC2 Jenkins or manual operations
+- Purpose: Full CI/CD pipeline in AWS
+- Organization:
+  - **10-19:** Infrastructure setup (one-time)
+  - **20-29:** CI operations (build, test, push)
+  - **30-39:** CD operations (deploy, verify, rollback)
+  - **90-99:** Utilities and cleanup
+
+### Which Scripts for Which Branch?
+
+**Jeffery Branch:**
+- **Local Jenkins:** Uses `scripts/local-ci-only/*` for CI testing
+- **AWS Jenkins:** Uses full pipeline (CI → CD to demo-backend)
+
+**Main Branch:**
+- **AWS Jenkins:** Uses full pipeline (CI → CD to prod-backend)
+- **Manual:** Can use `scripts/aws-ci-cd/*` directly
 
 ---
 
@@ -300,6 +333,8 @@ This strategy gives you the best of both worlds:
 ---
 
 For more information:
-- Pipeline configuration: `ci/Jenkinsfile`
-- Deployment scripts: `scripts/aws/`
-- Manual deployment: `AWS_DEPLOYMENT_GUIDE.md`
+- Pipeline configuration: `ci/Jenkinsfile-CI` and `ci/Jenkinsfile-CD`
+- Deployment scripts: `scripts/aws-ci-cd/`
+- Local scripts: `scripts/local-ci-only/`
+- Script guide: `docs/SCRIPT_GUIDE.md`
+- Development diary: `DEVELOPMENT_DIARY.md` (see Phase 7)

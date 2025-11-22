@@ -6,6 +6,13 @@ Description: >
   A simple Flask REST API deployed as a Lambda container function
   with API Gateway for HTTP access and CloudWatch for logging.
 
+# Parameters for dynamic configuration
+Parameters:
+  ImageTag:
+    Type: String
+    Default: latest
+    Description: Docker image tag to deploy from ECR
+
 # Global settings applied to all resources
 Globals:
   Function:
@@ -26,9 +33,12 @@ Resources:
     Properties:
       # Use container image instead of zip deployment
       PackageType: Image
-      # ECR image URI - update this with your actual ECR repository URI
-      # Format: <account-id>.dkr.ecr.<region>.amazonaws.com/<repo-name>:latest
-      ImageUri: !Sub '${AWS::AccountId}.dkr.ecr.${AWS::Region}.amazonaws.com/aws-lab-flask-demo:latest'
+      # ECR image URI - uses ImageTag parameter for dynamic tag selection
+      # Format: <account-id>.dkr.ecr.<region>.amazonaws.com/<repo-name>:<tag>
+      ImageUri: !Sub '${AWS::AccountId}.dkr.ecr.${AWS::Region}.amazonaws.com/aws-lab-flask-demo:${ImageTag}'
+
+      # Use existing LabRole instead of creating new IAM role (AWS Learner Lab restriction)
+      Role: !Sub 'arn:aws:iam::${AWS::AccountId}:role/LabRole'
 
       # API Gateway event triggers
       Events:
@@ -81,12 +91,6 @@ Outputs:
     Value: !GetAtt FlaskDemoFunction.Arn
     Export:
       Name: FlaskDemoFunctionArn
-
-  FlaskDemoFunctionIamRole:
-    Description: "IAM Role for Lambda Function"
-    Value: !GetAtt FlaskDemoFunctionRole.Arn
-    Export:
-      Name: FlaskDemoFunctionRoleArn
 
   FlaskDemoFunctionLogGroup:
     Description: "CloudWatch Logs group for Lambda Function"

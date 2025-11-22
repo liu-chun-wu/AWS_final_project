@@ -6,10 +6,20 @@ This file provides guidance to Claude Code (claude.ai/code) when working with co
 
 This is a **CI/CD demonstration project** showcasing a complete development pipeline from local Flask development to AWS cloud deployment.
 
-**Current Status:** Phase 6 COMPLETE - Full CI/CD automation implemented with:
-- ✅ Phases 1-5: Local Flask app, Docker, Jenkins, Webhook automation
-- ✅ Phase 6: AWS deployment automation with comprehensive scripts
-- ✅ Branch-based CI/CD: Jeffery (CI only) + main (full CI/CD)
+**Current Status:** Phase 8 COMPLETE - Refined CI/CD implementation order:
+- ✅ Phase 1: Local Flask REST API
+- ✅ Phase 2: Docker containerization
+- ✅ Phase 3a: Manual CI testing (build/push WITHOUT Jenkins)
+- ✅ Phase 3b: Manual CD testing (deploy/verify WITHOUT Jenkins)
+- ✅ Phase 4: Jenkinsfile preparation (define pipelines as Git-committed code)
+- ✅ Phase 5: Jenkins EC2 deployment (one-time, pulls configs from Git)
+- ✅ Phase 6: Jenkins pipeline testing (CI and CD validated separately)
+- ✅ Phase 7: End-to-end automation (webhooks → Jenkins → AWS)
+- ✅ Phase 8: Implementation order refinement
+  - Philosophy: **Prove → Codify → Automate**
+  - Manual testing BEFORE Jenkins deployment
+  - One-time EC2 deployment (no redeploy cycles)
+  - Higher confidence, lower risk, faster debugging
 
 ## Common Development Commands
 
@@ -58,22 +68,40 @@ docker run -d -p 8080:8080 -p 50000:50000 \
 docker exec <jenkins-container> cat /var/jenkins_home/secrets/initialAdminPassword
 ```
 
-### AWS Deployment (Phase 6 - Automated)
+### AWS Deployment (Phase 7 - Production Ready)
 
 ```bash
-# Local helper scripts (CI testing)
-./scripts/local/setup-jenkins.sh          # Set up Jenkins container
-./scripts/local/test-local.sh             # Run tests locally
-./scripts/local/build-local.sh            # Build Docker locally
+# Local CI-only scripts (testing without AWS)
+./scripts/local-ci-only/setup-jenkins.sh  # Set up Jenkins container
+./scripts/local-ci-only/test-local.sh     # Run tests locally
+./scripts/local-ci-only/build-local.sh    # Build Docker locally
 
-# AWS deployment scripts (CD)
-./scripts/aws/01-check-prerequisites.sh   # Verify AWS environment
-./scripts/aws/02-setup-ecr.sh             # Create ECR repository (one-time)
-./scripts/aws/03-build-and-push.sh        # Build & push to ECR
-./scripts/aws/04-deploy-sam.sh            # Deploy to Lambda + API Gateway
-./scripts/aws/05-verify-deployment.sh     # Test & validate deployment
-./scripts/aws/check-aws-status.sh         # Check resource status
-./scripts/aws/99-cleanup-all.sh           # Delete all AWS resources
+# AWS CI/CD scripts (organized by purpose)
+
+# 10-19: Infrastructure Setup (one-time)
+./scripts/aws-ci-cd/10-check-prerequisites.sh    # Verify AWS environment
+./scripts/aws-ci-cd/11-setup-ecr.sh              # Create ECR repository
+./scripts/aws-ci-cd/12-setup-jenkins-ec2.sh      # Launch Jenkins on EC2
+./scripts/aws-ci-cd/13-configure-jenkins-jobs.sh # Create CI/CD jobs
+
+# 20-29: CI Operations (build/test/push)
+./scripts/aws-ci-cd/20-ci-build-and-push.sh      # Build & push to ECR
+./scripts/aws-ci-cd/21-ci-validate-image.sh      # Verify image exists
+
+# 30-39: CD Operations (deploy/verify/rollback)
+./scripts/aws-ci-cd/30-cd-validate-sam.sh        # Validate SAM template
+./scripts/aws-ci-cd/31-cd-deploy-sam.sh          # Deploy to Lambda
+./scripts/aws-ci-cd/32-cd-verify-deployment.sh   # Test endpoints
+./scripts/aws-ci-cd/33-cd-redeploy-image.sh      # Redeploy existing image
+./scripts/aws-ci-cd/34-cd-rollback.sh            # Rollback to previous
+
+# 90-99: Utilities and Cleanup
+./scripts/aws-ci-cd/90-check-aws-status.sh       # Check AWS resources
+./scripts/aws-ci-cd/91-check-jenkins-status.sh   # Check Jenkins EC2
+./scripts/aws-ci-cd/92-view-cd-logs.sh           # View deployment logs
+./scripts/aws-ci-cd/93-start-jenkins-ec2.sh      # Start EC2 instance
+./scripts/aws-ci-cd/94-stop-jenkins-ec2.sh       # Stop EC2 to save costs
+./scripts/aws-ci-cd/99-cleanup-all.sh            # Delete all resources
 
 # Manual AWS commands (if not using scripts)
 aws ecr get-login-password --region us-east-1 | \
@@ -86,14 +114,16 @@ aws logs tail /aws/lambda/<function-name> --follow
 
 ## Architecture
 
-### Progressive 4-Phase Design
+### Progressive 6-Phase Design
 
-The architecture builds progressively, with each phase adding capability without breaking previous phases:
+The architecture builds progressively, with each phase adding capability:
 
 1. **Phase 1 - Local Flask**: Stateless REST API with `/health` and `/echo` endpoints
-2. **Phase 2 - Containerization**: Same app in Docker using gunicorn WSGI server
-3. **Phase 3 - Local CI/CD**: Jenkins pipeline with automated testing and image building
-4. **Phase 4 - AWS Integration**: ECR registry + Lambda container + API Gateway + CloudWatch
+2. **Phase 2 - Containerization**: Docker with gunicorn WSGI server
+3. **Phase 3 - Manual SAM Validation**: Prove deployment works before automation (CRITICAL GATE)
+4. **Phase 4 - Jenkins on EC2**: Production-ready Jenkins with separate CI and CD jobs
+5. **Phase 5 - Full Automation**: GitHub push → CI job → CD job → Lambda deployed
+6. **Phase 6-7 - Refinement**: Script organization, rollback capability, cost management
 
 ### Key Architectural Patterns
 
@@ -142,7 +172,8 @@ aws-lab-flask-ci-cd/
 │   ├── Dockerfile              # Multi-stage build for Lambda container compatibility
 │   └── .dockerignore
 ├── ci/
-│   └── Jenkinsfile             # Pipeline-as-code with all 5 stages
+│   ├── Jenkinsfile-CI          # CI pipeline (test, build, push)
+│   └── Jenkinsfile-CD          # CD pipeline (deploy, verify)
 ├── specs/                      # Comprehensive planning documentation (completed)
 ├── .gitignore
 └── README.md
@@ -150,11 +181,13 @@ aws-lab-flask-ci-cd/
 
 ## Implementation Status
 
-**CURRENT STATE: PRE-IMPLEMENTATION**
+**CURRENT STATE: PHASE 7 COMPLETE - PRODUCTION READY**
 
-All planning documentation is complete (spec.md, plan.md, tasks.md, checklist.md, agent.md). No source code has been implemented yet.
+All 7 phases complete with full CI/CD automation, Jenkins EC2 deployment, separated CI/CD pipelines, and comprehensive scripts.
 
-### Implementation Order
+### Implementation Order (Phase 8 Refinement)
+
+**Philosophy: Prove → Codify → Automate**
 
 When implementing this project, follow this sequence:
 
@@ -165,9 +198,19 @@ When implementing this project, follow this sequence:
 5. Write unit tests for /health endpoint
 6. Write integration tests for /echo endpoint
 7. Create Dockerfile with Lambda-compatible runtime
-8. Implement Jenkinsfile with all pipeline stages
-9. Create SAM template for AWS deployment
-10. Update README with actual setup instructions
+8. Create SAM template for AWS deployment
+9. **Phase 3a: Test CI manually** - Run pytest, docker build, docker push to ECR (WITHOUT Jenkins)
+10. **Phase 3b: Test CD manually** - Run sam validate, sam deploy, verify endpoints (WITHOUT Jenkins)
+11. **Phase 4: Create Jenkinsfile-CI locally** - Mirror Phase 3a manual steps
+12. **Phase 4: Create Jenkinsfile-CD locally** - Mirror Phase 3b manual steps
+13. **Phase 4: Commit Jenkinsfiles to Git** - Version control pipeline definitions
+14. **Phase 5: Deploy Jenkins on EC2** - Provision with pre-defined pipelines from Git
+15. **Phase 6: Test CI pipeline in Jenkins** - Verify automation of Phase 3a
+16. **Phase 6: Test CD pipeline in Jenkins** - Verify automation of Phase 3b
+17. **Phase 7: Configure GitHub webhooks** - Enable full automation (Push → Jenkins → AWS)
+18. **Phase 8: Test rollback scenario** - Validate recovery capabilities
+
+**Key Insight:** Test each step manually (Steps 9-10) BEFORE automating with Jenkins (Steps 14-16)
 
 ## Important Constraints
 
