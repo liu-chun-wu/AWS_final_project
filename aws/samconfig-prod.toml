@@ -1,0 +1,29 @@
+# SAM CLI configuration file for PRODUCTION deployments
+# This configuration deploys the backend (production service)
+#
+# Used for:
+# - Production deployments to AWS Lambda
+# - Actual service implementation
+# - Collaborator's production code
+#
+# Deployment command:
+#   sam deploy --config-file samconfig-prod.toml
+
+version = 0.1
+
+[default]
+[default.deploy]
+[default.deploy.parameters]
+stack_name = "flask-prod-backend"
+s3_prefix = "flask-prod-backend"
+region = "us-east-1"
+confirm_changeset = true
+capabilities = "CAPABILITY_IAM"
+image_repositories = []
+# ECR repository will be set dynamically by scripts/Jenkinsfile
+# Format: image_repositories = ["FlaskDemoFunction=<account-id>.dkr.ecr.us-east-1.amazonaws.com/aws-lab-flask-demo"]
+
+[default.build]
+[default.build.parameters]
+# Build from backend directory (production service)
+# Note: Actual Docker build happens before SAM, this is just metadata

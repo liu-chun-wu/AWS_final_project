@@ -1,0 +1,212 @@
+pipeline {
+    agent any
+
+    parameters {
+        choice(
+            name: 'BACKEND_DIR',
+            choices: ['demo-backend', 'backend'],
+            description: 'Which backend to build and test?\n• demo-backend: Flask demo for CI/CD validation\n• backend: Production service'
+        )
+    }
+
+    environment {
+        IMAGE_NAME = 'aws-lab-flask-demo'
+        IMAGE_TAG = "${BUILD_NUMBER}"
+        BACKEND = "${params.BACKEND_DIR ?: 'demo-backend'}"
+    }
+
+    stages {
+        stage('Checkout') {
+            steps {
+                echo 'Checking out source code from repository...'
+                checkout scm
+                echo 'Source code checked out successfully'
+            }
+        }
+
+        stage('Validate Jeffery Branch') {
+            steps {
+                script {
+                    def branchName = env.GIT_BRANCH ?: 'unknown'
+                    echo "============================================"
+                    echo "CI Pipeline - Continuous Integration"
+                    echo "============================================"
+                    echo "Current branch: ${branchName}"
+                    echo "Backend directory: ${env.BACKEND}"
+                    echo ""
+
+                    if (!branchName.contains('Jeffery')) {
+                        currentBuild.result = 'NOT_BUILT'
+                        error("❌ This CI pipeline is designed for the Jeffery branch only!\n" +
+                              "   Current branch: ${branchName}\n" +
+                              "   Expected branch: Jeffery\n\n" +
+                              "   For main branch deployment, use Jenkinsfile-CD instead.")
+                    }
+
+                    echo "✅ Jeffery branch validated"
+                    echo "   Pipeline mode: CI ONLY (Continuous Integration)"
+                    echo "   - Will run: Checkout, Setup, Install, Test, Build"
+                    echo "   - Will skip: AWS deployment (no ECR push, no Lambda deploy)"
+                    echo "   Purpose: Fast feedback for development"
+                    echo "============================================"
+                }
+            }
+        }
+
+        stage('Setup Python Environment') {
+            steps {
+                echo 'Setting up Python virtual environment...'
+                sh '''
+                    cd ${BACKEND}
+                    python3 -m venv .venv
+                    . .venv/bin/activate
+                    pip install --upgrade pip
+                    echo "✅ Python environment setup complete"
+                '''
+            }
+        }
+
+        stage('Install Dependencies') {
+            steps {
+                echo 'Installing Python dependencies from requirements.txt...'
+                sh '''
+                    cd ${BACKEND}
+                    . .venv/bin/activate
+                    pip install -r requirements.txt
+                    echo "✅ Dependencies installed successfully"
+                '''
+            }
+        }
+
+        stage('Run Tests') {
+            steps {
+                echo 'Running test suite (unit + integration)...'
+                sh '''
+                    cd ${BACKEND}
+                    . .venv/bin/activate
+
+                    echo "============================================"
+                    echo "Running unit tests..."
+                    echo "============================================"
+                    pytest tests/unit/ -v
+
+                    echo ""
+                    echo "============================================"
+                    echo "Running integration tests..."
+                    echo "============================================"
+                    pytest tests/integration/ -v
+
+                    echo ""
+                    echo "✅ All tests passed successfully"
+                '''
+            }
+        }
+
+        stage('Build Docker Image') {
+            steps {
+                echo 'Building Docker image for Lambda compatibility...'
+                sh '''
+                    echo "Building with Lambda-compatible settings:"
+                    echo "  - Platform: linux/amd64 (Lambda requirement)"
+                    echo "  - Provenance: disabled (Lambda requirement)"
+                    echo "  - SBOM: disabled (Lambda requirement)"
+                    echo ""
+
+                    docker build \\
+                        --platform linux/amd64 \\
+                        --provenance=false \\
+                        --sbom=false \\
+                        -t ${IMAGE_NAME}:${IMAGE_TAG} \\
+                        ${BACKEND}/
+
+                    docker tag ${IMAGE_NAME}:${IMAGE_TAG} ${IMAGE_NAME}:latest
+
+                    echo ""
+                    echo "✅ Docker image built successfully"
+                    echo "   Image: ${IMAGE_NAME}:${IMAGE_TAG}"
+                    echo "   Also tagged as: ${IMAGE_NAME}:latest"
+                    echo ""
+                    echo "   Note: Image built locally for validation only."
+                    echo "   To push to ECR, merge to main branch (triggers CD pipeline)."
+                '''
+            }
+        }
+    }
+
+    post {
+        success {
+            script {
+                echo '============================================'
+                echo '✅ CI PIPELINE COMPLETED SUCCESSFULLY!'
+                echo '============================================'
+                echo "Build #${BUILD_NUMBER} finished"
+                echo "Backend: ${env.BACKEND}"
+                echo "Docker image: ${IMAGE_NAME}:${IMAGE_TAG}"
+                echo ''
+                echo 'Results:'
+                echo '  ✓ All tests passed'
+                echo '  ✓ Docker image built locally (Lambda-compatible)'
+                echo '  ℹ AWS deployment skipped (Jeffery branch - CI only)'
+                echo ''
+                echo 'Next steps:'
+                echo '  1. Review test results in Jenkins console output'
+                echo '  2. Verify Docker image built with correct platform'
+                echo '  3. When ready, merge to main for production deployment'
+                echo '     (main branch triggers CD pipeline → deploys to AWS)'
+                echo ''
+                echo 'Manual verification (optional):'
+                echo '  docker images | grep ${IMAGE_NAME}'
+                echo '  docker inspect ${IMAGE_NAME}:${IMAGE_TAG} | grep Architecture'
+                echo '============================================'
+            }
+        }
+        failure {
+            script {
+                echo '============================================'
+                echo '❌ CI PIPELINE FAILED'
+                echo '============================================'
+                echo "Build #${BUILD_NUMBER} failed"
+                echo "Backend: ${env.BACKEND}"
+                echo ''
+                echo 'Common issues and solutions:'
+                echo ''
+                echo '  1. Branch validation failed:'
+                echo '     - This pipeline only runs on Jeffery branch'
+                echo '     - For main branch, use Jenkinsfile-CD instead'
+                echo '     - Check current branch: git branch'
+                echo ''
+                echo '  2. Tests failing:'
+                echo '     - Check test output in "Run Tests" stage above'
+                echo '     - Run tests locally:'
+                echo '       cd ${BACKEND}'
+                echo '       python3 -m venv .venv'
+                echo '       . .venv/bin/activate'
+                echo '       pip install -r requirements.txt'
+                echo '       pytest tests/ -v'
+                echo ''
+                echo '  3. Docker build failing:'
+                echo '     - Check Dockerfile syntax in ${BACKEND}/Dockerfile'
+                echo '     - Verify requirements.txt is valid'
+                echo '     - Test build locally:'
+                echo '       docker build --platform linux/amd64 -t test ${BACKEND}/'
+                echo ''
+                echo '  4. Python environment issues:'
+                echo '     - Check Python version: python3 --version (need 3.11)'
+                echo '     - Verify virtual environment setup'
+                echo '     - Check disk space for venv creation'
+                echo ''
+                echo 'Troubleshooting guide:'
+                echo '  See: docs/phase3-troubleshooting.txt'
+                echo '============================================'
+            }
+        }
+        always {
+            echo 'Cleaning up workspace...'
+            sh '''
+                cd ${BACKEND} 2>/dev/null || true
+                rm -rf .venv 2>/dev/null || true
+                echo "✓ Cleanup completed"
+            '''
+        }
+    }
+}

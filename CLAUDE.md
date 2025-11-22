@@ -4,7 +4,12 @@ This file provides guidance to Claude Code (claude.ai/code) when working with co
 
 ## Project Overview
 
-This is a **CI/CD demonstration project** showcasing a complete development pipeline from local Flask development to AWS cloud deployment. The project is currently in the **planning phase** - comprehensive specifications exist but implementation has not yet begun.
+This is a **CI/CD demonstration project** showcasing a complete development pipeline from local Flask development to AWS cloud deployment.
+
+**Current Status:** Phase 6 COMPLETE - Full CI/CD automation implemented with:
+- ✅ Phases 1-5: Local Flask app, Docker, Jenkins, Webhook automation
+- ✅ Phase 6: AWS deployment automation with comprehensive scripts
+- ✅ Branch-based CI/CD: Jeffery (CI only) + main (full CI/CD)
 
 ## Common Development Commands
 
@@ -53,22 +58,29 @@ docker run -d -p 8080:8080 -p 50000:50000 \
 docker exec <jenkins-container> cat /var/jenkins_home/secrets/initialAdminPassword
 ```
 
-### AWS Deployment (Phase 4)
+### AWS Deployment (Phase 6 - Automated)
 
 ```bash
-# ECR authentication
+# Local helper scripts (CI testing)
+./scripts/local/setup-jenkins.sh          # Set up Jenkins container
+./scripts/local/test-local.sh             # Run tests locally
+./scripts/local/build-local.sh            # Build Docker locally
+
+# AWS deployment scripts (CD)
+./scripts/aws/01-check-prerequisites.sh   # Verify AWS environment
+./scripts/aws/02-setup-ecr.sh             # Create ECR repository (one-time)
+./scripts/aws/03-build-and-push.sh        # Build & push to ECR
+./scripts/aws/04-deploy-sam.sh            # Deploy to Lambda + API Gateway
+./scripts/aws/05-verify-deployment.sh     # Test & validate deployment
+./scripts/aws/check-aws-status.sh         # Check resource status
+./scripts/aws/99-cleanup-all.sh           # Delete all AWS resources
+
+# Manual AWS commands (if not using scripts)
 aws ecr get-login-password --region us-east-1 | \
   docker login --username AWS --password-stdin <ecr-uri>
-
-# Push to ECR
 docker tag aws-lab-flask-demo:local <ecr-uri>:latest
 docker push <ecr-uri>:latest
-
-# Deploy infrastructure with SAM
-sam build
-sam deploy --guided
-
-# Monitor CloudWatch logs
+sam build && sam deploy --guided
 aws logs tail /aws/lambda/<function-name> --follow
 ```
 

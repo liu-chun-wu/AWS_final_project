@@ -1,0 +1,397 @@
+pipeline {
+    agent any
+
+    parameters {
+        choice(
+            name: 'BACKEND_DIR',
+            choices: ['demo-backend', 'backend'],
+            description: 'Which backend to deploy?\n• demo-backend: Deploy to flask-demo-backend stack\n• backend: Deploy to flask-prod-backend stack'
+        )
+        string(
+            name: 'IMAGE_TAG',
+            defaultValue: '',
+            description: 'ECR image tag to deploy (leave empty to auto-detect latest from ECR)'
+        )
+    }
+
+    environment {
+        IMAGE_NAME = 'aws-lab-flask-demo'
+        AWS_REGION = 'us-east-1'
+        // ECR_REGISTRY will be set dynamically based on AWS account
+        // For manual configuration, set in Jenkins: Manage Jenkins > Configure System > Global Properties
+        ECR_REGISTRY = "${env.AWS_ACCOUNT_ID ? env.AWS_ACCOUNT_ID : 'NOT_SET'}.dkr.ecr.us-east-1.amazonaws.com"
+        BACKEND = "${params.BACKEND_DIR ?: 'demo-backend'}"
+        // SAM config file selection
+        SAM_CONFIG = "${params.BACKEND_DIR == 'backend' ? 'samconfig-prod.toml' : 'samconfig-demo.toml'}"
+        STACK_NAME = "${params.BACKEND_DIR == 'backend' ? 'flask-prod-backend' : 'flask-demo-backend'}"
+    }
+
+    stages {
+        stage('Checkout') {
+            steps {
+                echo 'Checking out source code from repository...'
+                checkout scm
+                echo 'Source code checked out successfully'
+            }
+        }
+
+        stage('Validate Main Branch') {
+            steps {
+                script {
+                    def branchName = env.GIT_BRANCH ?: 'unknown'
+                    echo "============================================"
+                    echo "CD Pipeline - Continuous Deployment"
+                    echo "============================================"
+                    echo "Current branch: ${branchName}"
+                    echo "Backend directory: ${env.BACKEND}"
+                    echo "Stack name: ${env.STACK_NAME}"
+                    echo "SAM config: ${env.SAM_CONFIG}"
+                    echo ""
+
+                    if (!branchName.contains('main')) {
+                        currentBuild.result = 'NOT_BUILT'
+                        error("❌ This CD pipeline is designed for the main branch only!\n" +
+                              "   Current branch: ${branchName}\n" +
+                              "   Expected branch: main\n\n" +
+                              "   Production deployments should only happen from main.\n" +
+                              "   For development/testing, use Jenkinsfile-CI on Jeffery branch.")
+                    }
+
+                    echo "✅ Main branch validated"
+                    echo "   Pipeline mode: CD (Continuous Deployment)"
+                    echo "   - Will run: ECR login, Image push, SAM deploy, Verification"
+                    echo "   - Deploys to: AWS Lambda + API Gateway"
+                    echo "   Purpose: Production deployment from validated code"
+                    echo "============================================"
+                }
+            }
+        }
+
+        stage('Auto-detect or Validate Image Tag') {
+            steps {
+                script {
+                    echo 'Determining which ECR image to deploy...'
+
+                    if (params.IMAGE_TAG?.trim()) {
+                        env.DEPLOY_IMAGE_TAG = params.IMAGE_TAG
+                        echo "✅ Using explicitly specified image tag: ${env.DEPLOY_IMAGE_TAG}"
+                    } else {
+                        echo "No IMAGE_TAG parameter provided. Auto-detecting latest image from ECR..."
+                        sh '''
+                            IMAGE_TAG=$(aws ecr describe-images \\
+                                --repository-name ${IMAGE_NAME} \\
+                                --region ${AWS_REGION} \\
+                                --query 'sort_by(imageDetails,&imagePushedAt)[-1].imageTags[0]' \\
+                                --output text 2>/dev/null)
+
+                            if [ -z "$IMAGE_TAG" ] || [ "$IMAGE_TAG" == "None" ]; then
+                                echo "❌ No images found in ECR repository: ${IMAGE_NAME}"
+                                echo ""
+                                echo "You must build and push an image first:"
+                                echo "  Option 1: Run CI pipeline (builds locally, doesn't push)"
+                                echo "  Option 2: Run manual build script:"
+                                echo "    ./scripts/aws-ci-cd/20-ci-build-and-push.sh --demo"
+                                echo ""
+                                exit 1
+                            fi
+
+                            echo "$IMAGE_TAG" > /tmp/detected_image_tag.txt
+                            echo "✅ Auto-detected image tag: $IMAGE_TAG"
+
+                            PUSH_TIME=$(aws ecr describe-images \\
+                                --repository-name ${IMAGE_NAME} \\
+                                --region ${AWS_REGION} \\
+                                --image-ids imageTag=$IMAGE_TAG \\
+                                --query 'imageDetails[0].imagePushedAt' \\
+                                --output text 2>/dev/null)
+
+                            echo "   Pushed at: $PUSH_TIME"
+                        '''
+                        env.DEPLOY_IMAGE_TAG = readFile('/tmp/detected_image_tag.txt').trim()
+                    }
+
+                    echo ""
+                    echo "Deployment configuration:"
+                    echo "  Image: ${ECR_REGISTRY}/${IMAGE_NAME}:${env.DEPLOY_IMAGE_TAG}"
+                    echo "  Stack: ${env.STACK_NAME}"
+                    echo "  Config: aws/${env.SAM_CONFIG}"
+                }
+            }
+        }
+
+        stage('Login to ECR') {
+            steps {
+                echo '============================================'
+                echo 'AWS Stage 1/4: Logging into Amazon ECR'
+                echo '============================================'
+                echo 'Authenticating Docker to AWS Elastic Container Registry...'
+                echo "ECR Registry: ${ECR_REGISTRY}"
+                echo "AWS Region: ${AWS_REGION}"
+                echo ''
+                sh '''
+                    aws ecr get-login-password --region ${AWS_REGION} | \\
+                    docker login --username AWS --password-stdin ${ECR_REGISTRY}
+                    echo "✅ ECR authentication successful (valid for 12 hours)"
+                '''
+            }
+        }
+
+        stage('Build SAM Application') {
+            steps {
+                echo '============================================'
+                echo 'AWS Stage 2/4: Building SAM Application'
+                echo '============================================'
+                echo 'Validating SAM template and preparing deployment...'
+                echo "SAM Config: ${env.SAM_CONFIG}"
+                echo "Template: aws/template.yaml"
+                echo ''
+                sh '''
+                    cd aws
+
+                    echo "Validating SAM template..."
+                    sam validate --template template.yaml
+                    echo "✅ Template validation passed"
+
+                    echo ""
+                    echo "Building SAM application (skips Docker build for ECR images)..."
+                    sam build --template template.yaml
+                    echo "✅ SAM build complete"
+                '''
+            }
+        }
+
+        stage('Deploy to Lambda') {
+            steps {
+                echo '============================================'
+                echo 'AWS Stage 3/4: Deploying to AWS Lambda'
+                echo '============================================'
+                echo 'Deploying via AWS SAM (Serverless Application Model)...'
+                echo "Stack name: ${env.STACK_NAME}"
+                echo "Image tag: ${env.DEPLOY_IMAGE_TAG}"
+                echo ''
+                echo 'This will create/update:'
+                echo '  - Lambda function (container-based)'
+                echo '  - API Gateway (HTTP API)'
+                echo '  - IAM permissions'
+                echo '  - CloudWatch log groups'
+                echo ''
+                sh '''
+                    cd aws
+
+                    echo "Deploying to AWS (may take 3-5 minutes)..."
+                    sam deploy \\
+                        --config-file ${SAM_CONFIG} \\
+                        --stack-name ${STACK_NAME} \\
+                        --parameter-overrides ImageTag=${DEPLOY_IMAGE_TAG} \\
+                        --resolve-image-repos \\
+                        --no-confirm-changeset \\
+                        --no-fail-on-empty-changeset \\
+                        --region ${AWS_REGION}
+
+                    echo ""
+                    echo "✅ SAM deployment complete"
+                    echo ""
+                    echo "Getting deployment outputs..."
+                    aws cloudformation describe-stacks \\
+                        --stack-name ${STACK_NAME} \\
+                        --region ${AWS_REGION} \\
+                        --query 'Stacks[0].Outputs' \\
+                        --output table
+                '''
+            }
+        }
+
+        stage('Verify Deployment') {
+            steps {
+                echo '============================================'
+                echo 'AWS Stage 4/4: Verifying Deployment'
+                echo '============================================'
+                echo 'Testing deployed endpoints...'
+                echo ''
+                sh '''
+                    # Get API Gateway URL
+                    API_URL=$(aws cloudformation describe-stacks \\
+                        --stack-name ${STACK_NAME} \\
+                        --region ${AWS_REGION} \\
+                        --query 'Stacks[0].Outputs[?OutputKey==`FlaskDemoApi`].OutputValue' \\
+                        --output text 2>/dev/null)
+
+                    if [ -z "$API_URL" ]; then
+                        echo "❌ Could not retrieve API Gateway URL from CloudFormation"
+                        exit 1
+                    fi
+
+                    echo "✅ API Gateway URL: $API_URL"
+                    echo ""
+
+                    # Test /health endpoint
+                    echo "============================================"
+                    echo "Testing /health endpoint..."
+                    echo "============================================"
+                    HEALTH_RESPONSE=$(curl -s -w "\\nHTTP_STATUS:%{http_code}" "$API_URL/health")
+                    HTTP_STATUS=$(echo "$HEALTH_RESPONSE" | grep "HTTP_STATUS" | cut -d: -f2)
+                    RESPONSE_BODY=$(echo "$HEALTH_RESPONSE" | grep -v "HTTP_STATUS")
+
+                    echo "HTTP Status: $HTTP_STATUS"
+                    echo "Response: $RESPONSE_BODY"
+
+                    if [ "$HTTP_STATUS" == "200" ]; then
+                        echo "✅ Health endpoint working"
+
+                        if echo "$RESPONSE_BODY" | grep -q "status.*ok"; then
+                            echo "✅ Response contains expected status"
+                        else
+                            echo "⚠️  Unexpected response format"
+                        fi
+                    else
+                        echo "❌ Health endpoint returned HTTP $HTTP_STATUS"
+                        exit 1
+                    fi
+
+                    echo ""
+
+                    # Test /echo endpoint
+                    echo "============================================"
+                    echo "Testing /echo endpoint..."
+                    echo "============================================"
+                    TEST_DATA='{"message": "Jenkins CD verification", "build": "'${BUILD_NUMBER}'"}'
+
+                    ECHO_RESPONSE=$(curl -s -w "\\nHTTP_STATUS:%{http_code}" \\
+                        -X POST \\
+                        -H "Content-Type: application/json" \\
+                        -d "$TEST_DATA" \\
+                        "$API_URL/echo")
+
+                    HTTP_STATUS=$(echo "$ECHO_RESPONSE" | grep "HTTP_STATUS" | cut -d: -f2)
+                    RESPONSE_BODY=$(echo "$ECHO_RESPONSE" | grep -v "HTTP_STATUS")
+
+                    echo "HTTP Status: $HTTP_STATUS"
+                    echo "Request: $TEST_DATA"
+                    echo "Response: $RESPONSE_BODY"
+
+                    if [ "$HTTP_STATUS" == "200" ]; then
+                        echo "✅ Echo endpoint working"
+
+                        if echo "$RESPONSE_BODY" | grep -q "Jenkins CD verification"; then
+                            echo "✅ Response echoes request body correctly"
+                        else
+                            echo "⚠️  Response doesn't match expected format"
+                        fi
+                    else
+                        echo "❌ Echo endpoint returned HTTP $HTTP_STATUS"
+                        exit 1
+                    fi
+
+                    echo ""
+                    echo "✅ All endpoint verification tests passed"
+
+                    # Save API URL for post-build actions
+                    echo "$API_URL" > /tmp/api_url.txt
+                '''
+            }
+        }
+    }
+
+    post {
+        success {
+            script {
+                def apiUrl = readFile('/tmp/api_url.txt').trim()
+                echo '============================================'
+                echo '✅ CD PIPELINE COMPLETED SUCCESSFULLY!'
+                echo '============================================'
+                echo "Build #${BUILD_NUMBER} finished"
+                echo "Backend: ${env.BACKEND}"
+                echo "Stack: ${env.STACK_NAME}"
+                echo "Image tag: ${env.DEPLOY_IMAGE_TAG}"
+                echo ''
+                echo 'Deployment summary:'
+                echo '  ✓ ECR authentication successful'
+                echo '  ✓ SAM deployment completed'
+                echo '  ✓ Lambda function updated'
+                echo '  ✓ API Gateway endpoints verified'
+                echo ''
+                echo 'Your API is live at:'
+                echo "  ${apiUrl}"
+                echo ''
+                echo 'Test endpoints:'
+                echo "  curl ${apiUrl}/health"
+                echo "  curl -X POST ${apiUrl}/echo -H 'Content-Type: application/json' -d '{\"test\":\"data\"}'"
+                echo ''
+                echo 'CloudFormation stack:'
+                echo "  Stack name: ${env.STACK_NAME}"
+                echo "  Region: ${AWS_REGION}"
+                echo "  View in console: https://console.aws.amazon.com/cloudformation"
+                echo ''
+                echo 'CloudWatch logs:'
+                echo "  aws logs tail /aws/lambda/${env.STACK_NAME}-FlaskDemoFunction-* --follow"
+                echo ''
+                echo 'Verification script (optional):'
+                echo "  ./scripts/aws-ci-cd/32-cd-verify-deployment.sh --${params.BACKEND_DIR == 'backend' ? 'prod' : 'demo'}"
+                echo '============================================'
+            }
+        }
+        failure {
+            script {
+                echo '============================================'
+                echo '❌ CD PIPELINE FAILED'
+                echo '============================================'
+                echo "Build #${BUILD_NUMBER} failed"
+                echo "Backend: ${env.BACKEND}"
+                echo "Stack: ${env.STACK_NAME}"
+                echo ''
+                echo 'Common issues and solutions:'
+                echo ''
+                echo '  1. Branch validation failed:'
+                echo '     - This pipeline only runs on main branch'
+                echo '     - For development, use Jenkinsfile-CI on Jeffery branch'
+                echo '     - Check current branch: git branch'
+                echo ''
+                echo '  2. No ECR image found:'
+                echo '     - Build and push image first:'
+                echo '       ./scripts/aws-ci-cd/20-ci-build-and-push.sh --demo'
+                echo '     - Or run CI pipeline to build (manual push to ECR after)'
+                echo '     - Verify image exists:'
+                echo '       aws ecr describe-images --repository-name ${IMAGE_NAME}'
+                echo ''
+                echo '  3. ECR authentication failed:'
+                echo '     - Check AWS credentials in Jenkins'
+                echo '     - Verify AWS_ACCOUNT_ID environment variable'
+                echo '     - Test AWS access: aws sts get-caller-identity'
+                echo ''
+                echo '  4. SAM deployment failed:'
+                echo '     - Check CloudFormation console for detailed error'
+                echo '     - View stack events:'
+                echo '       aws cloudformation describe-stack-events --stack-name ${STACK_NAME}'
+                echo '     - Common causes:'
+                echo '       • Stack in ROLLBACK_COMPLETE (delete stack first)'
+                echo '       • Invalid template syntax'
+                echo '       • IAM permission issues (use LabRole)'
+                echo '       • Image not Lambda-compatible'
+                echo ''
+                echo '  5. Endpoint verification failed:'
+                echo '     - Lambda may have started but app crashed'
+                echo '     - Check CloudWatch logs:'
+                echo '       aws logs tail /aws/lambda/${STACK_NAME}-FlaskDemoFunction-* --since 5m'
+                echo '     - Common causes:'
+                echo '       • Missing environment variables'
+                echo '       • Port configuration issues'
+                echo '       • Application startup errors'
+                echo ''
+                echo 'Troubleshooting guide:'
+                echo '  See: docs/phase3-troubleshooting.txt'
+                echo ''
+                echo 'Rollback if needed:'
+                echo '  aws cloudformation delete-stack --stack-name ${STACK_NAME}'
+                echo '============================================'
+            }
+        }
+        always {
+            echo 'Cleaning up workspace...'
+            sh '''
+                rm -f /tmp/detected_image_tag.txt 2>/dev/null || true
+                rm -f /tmp/api_url.txt 2>/dev/null || true
+                echo "✓ Cleanup completed"
+            '''
+        }
+    }
+}

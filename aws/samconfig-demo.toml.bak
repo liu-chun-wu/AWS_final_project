@@ -1,0 +1,29 @@
+# SAM CLI configuration file for DEMO deployments
+# This configuration deploys the demo-backend (Flask validation demo)
+#
+# Used for:
+# - CI/CD validation and testing
+# - Verifying the deployment pipeline works
+# - Training and demonstrations
+#
+# Deployment command:
+#   sam deploy --config-file samconfig-demo.toml
+
+version = 0.1
+
+[default]
+[default.deploy]
+[default.deploy.parameters]
+stack_name = "flask-demo-backend"
+s3_prefix = "flask-demo-backend"
+region = "us-east-1"
+confirm_changeset = true
+capabilities = "CAPABILITY_IAM"
+image_repositories = "FlaskDemoFunction=536245021900.dkr.ecr.us-east-1.amazonaws.com/aws-lab-flask-demo:latest"
+# ECR repository will be set dynamically by scripts/Jenkinsfile
+# Format: image_repositories = ["FlaskDemoFunction=<account-id>.dkr.ecr.us-east-1.amazonaws.com/aws-lab-flask-demo"]
+
+[default.build]
+[default.build.parameters]
+# Build from demo-backend directory
+# Note: Actual Docker build happens before SAM, this is just metadata
