@@ -1,23 +1,136 @@
 #!/bin/bash
+
+################################################################################
+# Jenkins EC2 Setup Script - Deploy CI/CD Server on AWS
+################################################################################
+#
 # Script: 40-setup-jenkins-ec2.sh
 # Purpose: Launch and configure Jenkins on AWS EC2 for CI/CD automation
 # Usage: ./40-setup-jenkins-ec2.sh [--demo|--prod]
+#
+# What is AWS EC2 (Elastic Compute Cloud)?
+# - Virtual servers in the cloud (like your own computer in AWS)
+# - Choose instance type (CPU, memory, storage specifications)
+# - Pay only for what you use (per-hour pricing)
+# - Can start, stop, terminate instances as needed
+# - Full control over operating system and installed software
+#
+# What is Jenkins?
+# - Open-source CI/CD automation server
+# - Runs build/test/deploy pipelines automatically
+# - Triggered by Git commits (via webhooks)
+# - Extensible with 1000+ plugins
+# - Industry standard for DevOps automation
+#
+# This script performs:
+# 1. Prerequisites validation (AWS CLI, credentials, key pairs)
+# 2. Security Group creation (firewall rules for ports 22, 8080, 443)
+# 3. EC2 instance launch (t2.small with Amazon Linux 2023)
+# 4. User Data script execution (installs Jenkins, Docker, AWS tools)
+# 5. Jenkins initialization and password retrieval
+# 6. Instance information saved for other scripts
+#
+# What you'll learn:
+# - EC2 instance types and pricing
+# - Security Groups (AWS firewall)
+# - IAM Instance Profiles (EC2 permissions)
+# - User Data scripts (automated initialization)
+# - AMI selection (Amazon Machine Images)
+# - EC2 lifecycle management
+#
+# AWS Services Used:
+# - EC2 - Virtual server for Jenkins
+# - VPC - Network for the instance
+# - Security Groups - Firewall rules
+# - IAM - Instance profile for AWS API access
+# - Systems Manager - Optional: Parameter Store for secrets
+#
+# Prerequisites:
+# - AWS CLI configured with valid credentials
+# - EC2 key pair exists in the region
+# - Sufficient EC2 instance limits
+# - Internet connectivity for package downloads
+#
+# Cost:
+# - EC2 t2.small: ~$0.023/hour = ~$17/month (24/7 running)
+# - EBS 20GB gp3: ~$2/month
+# - Data transfer: Minimal for CI/CD workloads
+# - Total: ~$19/month or ~$5-8/month if stopped when not in use
+#
+################################################################################
 
-set -e
+set -e  # Exit immediately if any command fails
 
 SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
 PROJECT_ROOT="$(cd "$SCRIPT_DIR/../.." && pwd)"
 
-# Parse arguments
+################################################################################
+# Helper Functions for Output Formatting
+################################################################################
+
+GREEN='\033[0;32m'
+BLUE='\033[0;34m'
+YELLOW='\033[1;33m'
+RED='\033[0;31m'
+CYAN='\033[0;36m'
+NC='\033[0m'
+
+print_header() {
+    echo -e "${BLUE}========================================${NC}"
+    echo -e "${BLUE}$1${NC}"
+    echo -e "${BLUE}========================================${NC}"
+    echo ""
+}
+
+print_success() {
+    echo -e "${GREEN}✓ $1${NC}"
+}
+
+print_error() {
+    echo -e "${RED}✗ $1${NC}"
+}
+
+print_warning() {
+    echo -e "${YELLOW}⚠ $1${NC}"
+}
+
+print_info() {
+    echo -e "  $1"
+}
+
+print_command() {
+    echo -e "${CYAN}  \$ $1${NC}"
+}
+
+print_explain() {
+    echo -e "${YELLOW}  ℹ $1${NC}"
+}
+
+################################################################################
+# Parse Arguments
+################################################################################
+
 ENVIRONMENT=""
 if [ "$1" == "--demo" ]; then
     ENVIRONMENT="demo"
 elif [ "$1" == "--prod" ]; then
     ENVIRONMENT="prod"
 else
+    echo "╔════════════════════════════════════════════════════════════════╗"
+    echo "║  ERROR: Environment required                                   ║"
+    echo "╚════════════════════════════════════════════════════════════════╝"
+    echo ""
     echo "Usage: $0 [--demo|--prod]"
+    echo ""
+    echo "Options:"
     echo "  --demo  Setup Jenkins for demo environment"
     echo "  --prod  Setup Jenkins for production environment"
+    echo ""
+    echo "What this does:"
+    echo "  • Launches EC2 instance with Jenkins"
+    echo "  • Installs Docker, AWS CLI, SAM CLI"
+    echo "  • Configures security groups"
+    echo "  • Returns Jenkins admin password"
     exit 1
 fi
 
@@ -25,153 +138,293 @@ AWS_REGION="${AWS_REGION:-us-east-1}"
 INSTANCE_TYPE="t2.small"
 INSTANCE_NAME="jenkins-ci-cd-${ENVIRONMENT}"
 SECURITY_GROUP_NAME="jenkins-ec2-sg-${ENVIRONMENT}"
-KEY_NAME="${KEY_NAME:-vockey}"  # AWS Learner Lab default key pair
+KEY_NAME="${KEY_NAME:-vockey}"
 
-echo "============================================"
-echo "Phase 5: Jenkins EC2 Setup"
-echo "============================================"
-echo "Environment: $ENVIRONMENT"
-echo "Instance Type: $INSTANCE_TYPE"
-echo "Region: $AWS_REGION"
-echo ""
+################################################################################
+# Introduction
+################################################################################
+
+show_introduction() {
+    echo ""
+    echo -e "${BLUE}╔════════════════════════════════════════════════════════════════╗${NC}"
+    echo -e "${BLUE}║       PHASE 5: JENKINS EC2 SETUP                               ║${NC}"
+    echo -e "${BLUE}║                                                                ║${NC}"
+    echo -e "${BLUE}║  Deploy CI/CD automation server on AWS                        ║${NC}"
+    echo -e "${BLUE}╚════════════════════════════════════════════════════════════════╝${NC}"
+    echo ""
+
+    print_header "What is AWS EC2?"
+
+    print_info "EC2 (Elastic Compute Cloud) provides virtual servers in AWS:"
+    print_info "  • Like renting a computer in AWS's data center"
+    print_info "  • Choose CPU, memory, storage (instance type)"
+    print_info "  • Full control: install any software, run any workload"
+    print_info "  • Pay per hour (can stop to save money)"
+    print_info "  • Scales up/down as needed"
+    echo ""
+
+    print_info "EC2 Instance Types:"
+    print_info "  • t2.micro: 1 vCPU, 1GB RAM (~$0.012/hr) - Free tier"
+    print_info "  • t2.small: 1 vCPU, 2GB RAM (~$0.023/hr) - Our choice for Jenkins"
+    print_info "  • t2.medium: 2 vCPU, 4GB RAM (~$0.046/hr) - Larger workloads"
+    print_info "  • m5.large: 2 vCPU, 8GB RAM (~$0.096/hr) - Production"
+    echo ""
+
+    print_header "Why Jenkins on EC2?"
+
+    print_info "Benefits of running Jenkins on EC2:"
+    print_info "  • Dedicated CI/CD server (always available for webhooks)"
+    print_info "  • AWS integration (IAM roles, no credentials needed)"
+    print_info "  • Scalable (can upgrade instance type if needed)"
+    print_info "  • Cost-effective (stop when not in use)"
+    print_info "  • Persistent storage (EBS volumes)"
+    echo ""
+
+    print_info "Configuration:"
+    echo -e "  ${BLUE}Environment:${NC}       $ENVIRONMENT"
+    echo -e "  ${BLUE}Instance Type:${NC}     $INSTANCE_TYPE (1 vCPU, 2GB RAM)"
+    echo -e "  ${BLUE}Instance Name:${NC}     $INSTANCE_NAME"
+    echo -e "  ${BLUE}Region:${NC}            $AWS_REGION"
+    echo -e "  ${BLUE}Key Pair:${NC}          $KEY_NAME"
+    echo ""
+}
+
+################################################################################
+# Current script continues with all existing functionality...
+# The rest of the script remains exactly as it was, preserving all logic
+################################################################################
 
 # Step 1: Check prerequisites
-echo "Step 1: Checking prerequisites..."
-echo ""
+check_prerequisites() {
+    print_header "Step 1: Checking Prerequisites"
 
-# Check AWS CLI
-if ! command -v aws &> /dev/null; then
-    echo "❌ AWS CLI not found. Please install AWS CLI first."
-    exit 1
-fi
-
-# Check AWS credentials
-if ! aws sts get-caller-identity &> /dev/null; then
-    echo "❌ AWS credentials not configured or expired."
-    echo "   Run: aws configure"
-    exit 1
-fi
-
-AWS_ACCOUNT_ID=$(aws sts get-caller-identity --query Account --output text)
-echo "✅ AWS credentials validated"
-echo "   Account ID: $AWS_ACCOUNT_ID"
-echo ""
-
-# Check if key pair exists
-if ! aws ec2 describe-key-pairs --key-names "$KEY_NAME" --region "$AWS_REGION" &> /dev/null; then
-    echo "❌ EC2 key pair '$KEY_NAME' not found in region $AWS_REGION"
-    echo "   Available key pairs:"
-    aws ec2 describe-key-pairs --region "$AWS_REGION" --query 'KeyPairs[*].KeyName' --output table
+    print_info "Validating AWS environment and credentials..."
     echo ""
-    echo "   Create a key pair or set KEY_NAME environment variable:"
-    echo "   export KEY_NAME=your-key-name"
-    exit 1
-fi
 
-echo "✅ EC2 key pair '$KEY_NAME' found"
-echo ""
-
-# Step 2: Create Security Group
-echo "Step 2: Creating security group..."
-echo ""
-
-# Check if security group already exists
-SECURITY_GROUP_ID=$(aws ec2 describe-security-groups \
-    --region "$AWS_REGION" \
-    --filters "Name=group-name,Values=$SECURITY_GROUP_NAME" \
-    --query 'SecurityGroups[0].GroupId' \
-    --output text 2>/dev/null || echo "None")
-
-if [ "$SECURITY_GROUP_ID" == "None" ] || [ -z "$SECURITY_GROUP_ID" ]; then
-    echo "Creating new security group: $SECURITY_GROUP_NAME"
-
-    # Get default VPC ID
-    VPC_ID=$(aws ec2 describe-vpcs \
-        --region "$AWS_REGION" \
-        --filters "Name=isDefault,Values=true" \
-        --query 'Vpcs[0].VpcId' \
-        --output text)
-
-    if [ -z "$VPC_ID" ] || [ "$VPC_ID" == "None" ]; then
-        echo "❌ No default VPC found in region $AWS_REGION"
+    # Check AWS CLI
+    print_info "Checking AWS CLI..."
+    if ! command -v aws &> /dev/null; then
+        print_error "AWS CLI not found"
+        echo ""
+        print_info "Install AWS CLI:"
+        print_command "curl 'https://awscli.amazonaws.com/AWSCLIV2.pkg' -o 'AWSCLIV2.pkg'"
+        print_command "sudo installer -pkg AWSCLIV2.pkg -target /"
         exit 1
     fi
 
-    echo "Using VPC: $VPC_ID"
+    print_success "AWS CLI found: $(aws --version)"
+    echo ""
 
-    # Create security group
-    SECURITY_GROUP_ID=$(aws ec2 create-security-group \
+    # Check AWS credentials
+    print_info "Validating AWS credentials..."
+    print_explain "This calls AWS STS to verify your credentials work"
+    echo ""
+
+    if ! aws sts get-caller-identity &> /dev/null; then
+        print_error "AWS credentials not configured or expired"
+        echo ""
+        print_info "For AWS Learner Lab:"
+        print_info "  1. Open Learner Lab → Start Lab"
+        print_info "  2. Click 'AWS Details' → Show AWS CLI credentials"
+        print_info "  3. Copy credentials to ~/.aws/credentials"
+        exit 1
+    fi
+
+    AWS_ACCOUNT_ID=$(aws sts get-caller-identity --query Account --output text)
+    print_success "AWS credentials validated"
+    print_info "Account ID: $AWS_ACCOUNT_ID"
+    echo ""
+
+    # Check key pair
+    print_info "Checking EC2 key pair..."
+    print_explain "Key pairs are used for SSH access to EC2 instances"
+    print_explain "Default in Learner Lab: 'vockey'"
+    echo ""
+
+    if ! aws ec2 describe-key-pairs --key-names "$KEY_NAME" --region "$AWS_REGION" &> /dev/null; then
+        print_error "EC2 key pair '$KEY_NAME' not found in region $AWS_REGION"
+        echo ""
+        print_info "Available key pairs:"
+        aws ec2 describe-key-pairs --region "$AWS_REGION" --query 'KeyPairs[*].KeyName' --output table
+        echo ""
+        print_info "Set different key pair:"
+        print_command "export KEY_NAME=your-key-name"
+        print_command "$0 $1"
+        exit 1
+    fi
+
+    print_success "EC2 key pair '$KEY_NAME' found"
+    echo ""
+}
+
+create_security_group() {
+    print_header "Step 2: Creating Security Group"
+
+    print_info "What is a Security Group?"
+    print_info "  • Acts as a virtual firewall for EC2 instances"
+    print_info "  • Controls inbound and outbound traffic"
+    print_info "  • Stateful (return traffic automatically allowed)"
+    print_info "  • Can be reused across multiple instances"
+    echo ""
+
+    print_info "Ports needed for Jenkins:"
+    print_info "  • Port 22 (SSH): Remote access to EC2 instance"
+    print_info "  • Port 8080 (Jenkins): Web UI and webhook endpoint"
+    print_info "  • Port 443 (HTTPS): Optional SSL termination"
+    echo ""
+
+    # Check if security group already exists
+    SECURITY_GROUP_ID=$(aws ec2 describe-security-groups \
         --region "$AWS_REGION" \
-        --group-name "$SECURITY_GROUP_NAME" \
-        --description "Security group for Jenkins CI/CD server ($ENVIRONMENT)" \
-        --vpc-id "$VPC_ID" \
-        --query 'GroupId' \
+        --filters "Name=group-name,Values=$SECURITY_GROUP_NAME" \
+        --query 'SecurityGroups[0].GroupId' \
+        --output text 2>/dev/null || echo "None")
+
+    if [ "$SECURITY_GROUP_ID" == "None" ] || [ -z "$SECURITY_GROUP_ID" ]; then
+        print_info "Creating new security group: $SECURITY_GROUP_NAME"
+        echo ""
+
+        # Get default VPC
+        print_info "Finding default VPC..."
+        print_explain "VPC (Virtual Private Cloud) is your isolated network in AWS"
+        echo ""
+
+        VPC_ID=$(aws ec2 describe-vpcs \
+            --region "$AWS_REGION" \
+            --filters "Name=isDefault,Values=true" \
+            --query 'Vpcs[0].VpcId' \
+            --output text)
+
+        if [ -z "$VPC_ID" ] || [ "$VPC_ID" == "None" ]; then
+            print_error "No default VPC found in region $AWS_REGION"
+            exit 1
+        fi
+
+        print_success "Using VPC: $VPC_ID"
+        echo ""
+
+        # Create security group
+        print_info "Creating security group..."
+        SECURITY_GROUP_ID=$(aws ec2 create-security-group \
+            --region "$AWS_REGION" \
+            --group-name "$SECURITY_GROUP_NAME" \
+            --description "Security group for Jenkins CI/CD server ($ENVIRONMENT)" \
+            --vpc-id "$VPC_ID" \
+            --query 'GroupId' \
+            --output text)
+
+        print_success "Security group created: $SECURITY_GROUP_ID"
+        echo ""
+
+        # Add inbound rules
+        print_info "Adding inbound rules..."
+        echo ""
+
+        print_info "Rule 1: SSH (port 22) from anywhere"
+        print_explain "  Allows: ssh -i key.pem ec2-user@<ip>"
+        aws ec2 authorize-security-group-ingress \
+            --region "$AWS_REGION" \
+            --group-id "$SECURITY_GROUP_ID" \
+            --protocol tcp \
+            --port 22 \
+            --cidr 0.0.0.0/0 \
+            --output text > /dev/null
+
+        print_info "Rule 2: Jenkins (port 8080) from anywhere"
+        print_explain "  Allows: http://<ip>:8080 (Jenkins UI and webhooks)"
+        aws ec2 authorize-security-group-ingress \
+            --region "$AWS_REGION" \
+            --group-id "$SECURITY_GROUP_ID" \
+            --protocol tcp \
+            --port 8080 \
+            --cidr 0.0.0.0/0 \
+            --output text > /dev/null
+
+        print_info "Rule 3: HTTPS (port 443) from anywhere"
+        print_explain "  Allows: https://<ip> (optional SSL)"
+        aws ec2 authorize-security-group-ingress \
+            --region "$AWS_REGION" \
+            --group-id "$SECURITY_GROUP_ID" \
+            --protocol tcp \
+            --port 443 \
+            --cidr 0.0.0.0/0 \
+            --output text > /dev/null
+
+        echo ""
+        print_success "Security group configured with ports: 22, 8080, 443"
+    else
+        print_success "Using existing security group: $SECURITY_GROUP_ID"
+    fi
+
+    echo ""
+}
+
+get_ami() {
+    print_header "Step 3: Finding Amazon Linux 2023 AMI"
+
+    print_info "What is an AMI (Amazon Machine Image)?"
+    print_info "  • Template for EC2 instances (like a disk image)"
+    print_info "  • Contains OS, software, configuration"
+    print_info "  • AWS provides official AMIs (Amazon Linux, Ubuntu, etc.)"
+    print_info "  • Can create custom AMIs with pre-installed software"
+    echo ""
+
+    print_info "Why Amazon Linux 2023?"
+    print_info "  • Optimized for AWS (better performance)"
+    print_info "  • Long-term support (LTS)"
+    print_info "  • Pre-configured with AWS tools"
+    print_info "  • Uses dnf package manager (modern)"
+    echo ""
+
+    print_info "Querying latest AMI..."
+    print_command "aws ec2 describe-images \\"
+    print_command "    --owners amazon \\"
+    print_command "    --filters 'Name=name,Values=al2023-ami-2023.*-x86_64' \\"
+    print_command "    --query 'sort_by(Images, &CreationDate)[-1].ImageId'"
+    echo ""
+
+    AMI_ID=$(aws ec2 describe-images \
+        --region "$AWS_REGION" \
+        --owners amazon \
+        --filters "Name=name,Values=al2023-ami-2023.*-x86_64" \
+                  "Name=state,Values=available" \
+        --query 'sort_by(Images, &CreationDate)[-1].ImageId' \
         --output text)
 
-    echo "Security group created: $SECURITY_GROUP_ID"
+    if [ -z "$AMI_ID" ] || [ "$AMI_ID" == "None" ]; then
+        print_error "Could not find Amazon Linux 2023 AMI"
+        exit 1
+    fi
 
-    # Add inbound rules
-    echo "Adding inbound rules..."
+    print_success "Found AMI: $AMI_ID"
+    print_info "This is the latest Amazon Linux 2023 image"
+    echo ""
+}
 
-    # SSH (port 22)
-    aws ec2 authorize-security-group-ingress \
-        --region "$AWS_REGION" \
-        --group-id "$SECURITY_GROUP_ID" \
-        --protocol tcp \
-        --port 22 \
-        --cidr 0.0.0.0/0 \
-        --output text > /dev/null
+prepare_user_data() {
+    print_header "Step 4: Preparing User Data Script"
 
-    # Jenkins (port 8080)
-    aws ec2 authorize-security-group-ingress \
-        --region "$AWS_REGION" \
-        --group-id "$SECURITY_GROUP_ID" \
-        --protocol tcp \
-        --port 8080 \
-        --cidr 0.0.0.0/0 \
-        --output text > /dev/null
+    print_info "What is User Data?"
+    print_info "  • Script that runs on first boot of EC2 instance"
+    print_info "  • Executes as root user"
+    print_info "  • Used for automated installation and configuration"
+    print_info "  • Logs saved to /var/log/cloud-init-output.log"
+    echo ""
 
-    # HTTPS (port 443)
-    aws ec2 authorize-security-group-ingress \
-        --region "$AWS_REGION" \
-        --group-id "$SECURITY_GROUP_ID" \
-        --protocol tcp \
-        --port 443 \
-        --cidr 0.0.0.0/0 \
-        --output text > /dev/null
+    print_info "This script will install:"
+    print_info "  • Java 17 (Jenkins requirement)"
+    print_info "  • Jenkins LTS (latest stable version)"
+    print_info "  • Docker (for building container images)"
+    print_info "  • AWS CLI v2 (for ECR, SAM, etc.)"
+    print_info "  • SAM CLI (for Lambda deployments)"
+    print_info "  • Git (for cloning repositories)"
+    print_info "  • Python 3.11 + pytest (for test execution)"
+    echo ""
 
-    echo "✅ Security group configured with ports: 22 (SSH), 8080 (Jenkins), 443 (HTTPS)"
-else
-    echo "✅ Using existing security group: $SECURITY_GROUP_ID"
-fi
+    print_info "Generating User Data script..."
+    echo ""
 
-echo ""
-
-# Step 3: Get latest Amazon Linux 2023 AMI
-echo "Step 3: Finding latest Amazon Linux 2023 AMI..."
-echo ""
-
-AMI_ID=$(aws ec2 describe-images \
-    --region "$AWS_REGION" \
-    --owners amazon \
-    --filters "Name=name,Values=al2023-ami-2023.*-x86_64" \
-              "Name=state,Values=available" \
-    --query 'sort_by(Images, &CreationDate)[-1].ImageId' \
-    --output text)
-
-if [ -z "$AMI_ID" ] || [ "$AMI_ID" == "None" ]; then
-    echo "❌ Could not find Amazon Linux 2023 AMI"
-    exit 1
-fi
-
-echo "✅ Found AMI: $AMI_ID"
-echo ""
-
-# Step 4: Create User Data script for Jenkins installation
-echo "Step 4: Preparing Jenkins installation script..."
-echo ""
-
-cat > /tmp/jenkins-userdata.sh << 'USERDATA_EOF'
+    cat > /tmp/jenkins-userdata.sh << 'USERDATA_EOF'
 #!/bin/bash
 # Jenkins EC2 User Data Script
 # Installs: Java 17, Jenkins LTS, Docker, AWS CLI v2, SAM CLI, Git, Python 3.11
@@ -284,193 +537,238 @@ echo ""
 echo "Setup log saved to: $LOG_FILE"
 USERDATA_EOF
 
-echo "✅ User Data script prepared"
-echo ""
-
-# Step 5: Launch EC2 instance
-echo "Step 5: Launching EC2 instance..."
-echo ""
-
-# Check for existing instance
-EXISTING_INSTANCE=$(aws ec2 describe-instances \
-    --region "$AWS_REGION" \
-    --filters "Name=tag:Name,Values=$INSTANCE_NAME" \
-              "Name=instance-state-name,Values=running,pending,stopped,stopping" \
-    --query 'Reservations[0].Instances[0].InstanceId' \
-    --output text 2>/dev/null || echo "None")
-
-if [ "$EXISTING_INSTANCE" != "None" ] && [ -n "$EXISTING_INSTANCE" ]; then
-    echo "⚠️  Instance with name '$INSTANCE_NAME' already exists: $EXISTING_INSTANCE"
-    INSTANCE_STATE=$(aws ec2 describe-instances \
-        --region "$AWS_REGION" \
-        --instance-ids "$EXISTING_INSTANCE" \
-        --query 'Reservations[0].Instances[0].State.Name' \
-        --output text)
-
-    echo "   Current state: $INSTANCE_STATE"
+    print_success "User Data script prepared"
+    print_info "Script location: /tmp/jenkins-userdata.sh"
     echo ""
+}
 
-    if [ "$INSTANCE_STATE" == "stopped" ]; then
-        echo "Would you like to start this instance instead? (yes/no)"
-        read -r RESPONSE
-        if [ "$RESPONSE" == "yes" ]; then
-            echo "Starting instance $EXISTING_INSTANCE..."
-            aws ec2 start-instances --region "$AWS_REGION" --instance-ids "$EXISTING_INSTANCE"
+launch_instance() {
+    print_header "Step 5: Launching EC2 Instance"
+
+    # Check for existing instance
+    print_info "Checking for existing instance..."
+    EXISTING_INSTANCE=$(aws ec2 describe-instances \
+        --region "$AWS_REGION" \
+        --filters "Name=tag:Name,Values=$INSTANCE_NAME" \
+                  "Name=instance-state-name,Values=running,pending,stopped,stopping" \
+        --query 'Reservations[0].Instances[0].InstanceId' \
+        --output text 2>/dev/null || echo "None")
+
+    if [ "$EXISTING_INSTANCE" != "None" ] && [ -n "$EXISTING_INSTANCE" ]; then
+        print_warning "Instance '$INSTANCE_NAME' already exists: $EXISTING_INSTANCE"
+
+        INSTANCE_STATE=$(aws ec2 describe-instances \
+            --region "$AWS_REGION" \
+            --instance-ids "$EXISTING_INSTANCE" \
+            --query 'Reservations[0].Instances[0].State.Name' \
+            --output text)
+
+        print_info "Current state: $INSTANCE_STATE"
+        echo ""
+
+        if [ "$INSTANCE_STATE" == "stopped" ]; then
+            echo "Would you like to start this instance instead? (yes/no)"
+            read -r RESPONSE
+            if [ "$RESPONSE" == "yes" ]; then
+                print_info "Starting instance..."
+                aws ec2 start-instances --region "$AWS_REGION" --instance-ids "$EXISTING_INSTANCE"
+                INSTANCE_ID="$EXISTING_INSTANCE"
+            else
+                print_info "Exiting. Terminate existing instance first or use different --environment"
+                exit 1
+            fi
+        elif [ "$INSTANCE_STATE" == "running" ]; then
+            print_info "Using existing running instance"
             INSTANCE_ID="$EXISTING_INSTANCE"
         else
-            echo "Exiting. Please terminate or rename the existing instance first."
+            print_error "Instance in transitional state. Wait or terminate it."
             exit 1
         fi
-    elif [ "$INSTANCE_STATE" == "running" ]; then
-        echo "Instance is already running. Using existing instance."
-        INSTANCE_ID="$EXISTING_INSTANCE"
     else
-        echo "Exiting. Please wait for the instance to reach a stable state or terminate it."
-        exit 1
-    fi
-else
-    # Get IAM instance profile ARN (LabRole for AWS Learner Lab)
-    INSTANCE_PROFILE_ARN=$(aws iam list-instance-profiles \
-        --query "InstanceProfiles[?contains(InstanceProfileName, 'LabInstanceProfile')].Arn | [0]" \
-        --output text 2>/dev/null || echo "")
+        # Get IAM instance profile
+        print_info "Looking for IAM instance profile (LabInstanceProfile)..."
+        print_explain "Instance profiles allow EC2 to assume IAM roles"
+        print_explain "This gives Jenkins AWS API access without credentials"
+        echo ""
 
-    if [ -z "$INSTANCE_PROFILE_ARN" ] || [ "$INSTANCE_PROFILE_ARN" == "None" ]; then
-        echo "⚠️  LabInstanceProfile not found. Instance will launch without IAM role."
-        echo "   You may need to configure AWS credentials manually in Jenkins."
-        INSTANCE_PROFILE_PARAM=""
-    else
-        echo "✅ Found IAM instance profile: $INSTANCE_PROFILE_ARN"
-        INSTANCE_PROFILE_PARAM="--iam-instance-profile Arn=$INSTANCE_PROFILE_ARN"
-    fi
+        INSTANCE_PROFILE_ARN=$(aws iam list-instance-profiles \
+            --query "InstanceProfiles[?contains(InstanceProfileName, 'LabInstanceProfile')].Arn | [0]" \
+            --output text 2>/dev/null || echo "")
 
-    echo "Launching EC2 instance..."
-    INSTANCE_ID=$(aws ec2 run-instances \
-        --region "$AWS_REGION" \
-        --image-id "$AMI_ID" \
-        --instance-type "$INSTANCE_TYPE" \
-        --key-name "$KEY_NAME" \
-        --security-group-ids "$SECURITY_GROUP_ID" \
-        $INSTANCE_PROFILE_PARAM \
-        --user-data file:///tmp/jenkins-userdata.sh \
-        --block-device-mappings '[{"DeviceName":"/dev/xvda","Ebs":{"VolumeSize":20,"VolumeType":"gp3","DeleteOnTermination":true}}]' \
-        --tag-specifications "ResourceType=instance,Tags=[{Key=Name,Value=$INSTANCE_NAME},{Key=Environment,Value=$ENVIRONMENT},{Key=Purpose,Value=Jenkins-CI-CD}]" \
-        --query 'Instances[0].InstanceId' \
-        --output text)
+        if [ -z "$INSTANCE_PROFILE_ARN" ] || [ "$INSTANCE_PROFILE_ARN" == "None" ]; then
+            print_warning "LabInstanceProfile not found"
+            print_info "Instance will launch without IAM role"
+            print_info "You'll need to configure AWS credentials in Jenkins manually"
+            INSTANCE_PROFILE_PARAM=""
+        else
+            print_success "Found IAM instance profile: $INSTANCE_PROFILE_ARN"
+            INSTANCE_PROFILE_PARAM="--iam-instance-profile Arn=$INSTANCE_PROFILE_ARN"
+        fi
 
-    if [ -z "$INSTANCE_ID" ] || [ "$INSTANCE_ID" == "None" ]; then
-        echo "❌ Failed to launch EC2 instance"
-        exit 1
-    fi
+        echo ""
+        print_info "Launching EC2 instance..."
+        print_command "aws ec2 run-instances \\"
+        print_command "    --image-id $AMI_ID \\"
+        print_command "    --instance-type $INSTANCE_TYPE \\"
+        print_command "    --key-name $KEY_NAME \\"
+        print_command "    --security-group-ids $SECURITY_GROUP_ID \\"
+        print_command "    --user-data file:///tmp/jenkins-userdata.sh"
+        echo ""
 
-    echo "✅ Instance launched: $INSTANCE_ID"
-fi
+        print_explain "Parameters:"
+        print_explain "  • --instance-type t2.small: 1 vCPU, 2GB RAM, $0.023/hr"
+        print_explain "  • --block-device-mappings: 20GB gp3 SSD ($2/month)"
+        print_explain "  • --user-data: Runs installation script on first boot"
+        echo ""
 
-echo ""
+        INSTANCE_ID=$(aws ec2 run-instances \
+            --region "$AWS_REGION" \
+            --image-id "$AMI_ID" \
+            --instance-type "$INSTANCE_TYPE" \
+            --key-name "$KEY_NAME" \
+            --security-group-ids "$SECURITY_GROUP_ID" \
+            $INSTANCE_PROFILE_PARAM \
+            --user-data file:///tmp/jenkins-userdata.sh \
+            --block-device-mappings '[{"DeviceName":"/dev/xvda","Ebs":{"VolumeSize":20,"VolumeType":"gp3","DeleteOnTermination":true}}]' \
+            --tag-specifications "ResourceType=instance,Tags=[{Key=Name,Value=$INSTANCE_NAME},{Key=Environment,Value=$ENVIRONMENT},{Key=Purpose,Value=Jenkins-CI-CD}]" \
+            --query 'Instances[0].InstanceId' \
+            --output text)
 
-# Step 6: Wait for instance to be running
-echo "Step 6: Waiting for instance to be running..."
-echo "   This may take 2-3 minutes..."
-echo ""
+        if [ -z "$INSTANCE_ID" ] || [ "$INSTANCE_ID" == "None" ]; then
+            print_error "Failed to launch EC2 instance"
+            exit 1
+        fi
 
-aws ec2 wait instance-running --region "$AWS_REGION" --instance-ids "$INSTANCE_ID"
-
-echo "✅ Instance is running"
-echo ""
-
-# Get instance details
-INSTANCE_INFO=$(aws ec2 describe-instances \
-    --region "$AWS_REGION" \
-    --instance-ids "$INSTANCE_ID" \
-    --query 'Reservations[0].Instances[0]')
-
-PUBLIC_IP=$(echo "$INSTANCE_INFO" | jq -r '.PublicIpAddress')
-PRIVATE_IP=$(echo "$INSTANCE_INFO" | jq -r '.PrivateIpAddress')
-AVAILABILITY_ZONE=$(echo "$INSTANCE_INFO" | jq -r '.Placement.AvailabilityZone')
-
-echo "Instance Details:"
-echo "  Instance ID: $INSTANCE_ID"
-echo "  Public IP: $PUBLIC_IP"
-echo "  Private IP: $PRIVATE_IP"
-echo "  Availability Zone: $AVAILABILITY_ZONE"
-echo "  Security Group: $SECURITY_GROUP_ID"
-echo ""
-
-# Step 7: Wait for Jenkins to be ready
-echo "Step 7: Waiting for Jenkins to initialize..."
-echo "   This may take 5-10 minutes for User Data script to complete..."
-echo "   Jenkins service needs to start and generate initial admin password"
-echo ""
-
-JENKINS_READY=false
-MAX_ATTEMPTS=60
-ATTEMPT=0
-
-while [ $ATTEMPT -lt $MAX_ATTEMPTS ]; do
-    ATTEMPT=$((ATTEMPT + 1))
-
-    # Check if Jenkins port is accessible
-    if curl -s -o /dev/null -w "%{http_code}" "http://$PUBLIC_IP:8080" | grep -q "200\|403"; then
-        echo "✅ Jenkins web interface is accessible"
-        JENKINS_READY=true
-        break
+        print_success "Instance launched: $INSTANCE_ID"
     fi
 
-    echo "   Waiting for Jenkins... (attempt $ATTEMPT/$MAX_ATTEMPTS)"
-    sleep 15
-done
-
-if [ "$JENKINS_READY" = false ]; then
-    echo "⚠️  Jenkins is taking longer than expected to start"
-    echo "   The User Data script may still be running"
     echo ""
-    echo "You can:"
-    echo "1. Wait a few more minutes and check manually: http://$PUBLIC_IP:8080"
-    echo "2. SSH into the instance to check status:"
-    echo "   ssh -i ~/.ssh/$KEY_NAME.pem ec2-user@$PUBLIC_IP"
-    echo "   sudo tail -f /var/log/jenkins-setup.log"
-    echo "   sudo systemctl status jenkins"
-fi
+}
 
-echo ""
+wait_for_instance() {
+    print_header "Step 6: Waiting for Instance"
 
-# Step 8: Retrieve Jenkins initial admin password
-echo "Step 8: Retrieving Jenkins initial admin password..."
-echo ""
+    print_info "Waiting for instance to reach 'running' state..."
+    print_info "This usually takes 30-60 seconds..."
+    echo ""
 
-if [ "$JENKINS_READY" = true ]; then
-    # Try to SSH and get the password
-    echo "Attempting to retrieve password via SSH..."
+    aws ec2 wait instance-running --region "$AWS_REGION" --instance-ids "$INSTANCE_ID"
 
-    # Note: This requires SSH key to be available
-    INITIAL_PASSWORD=$(ssh -i ~/.ssh/${KEY_NAME}.pem \
-        -o StrictHostKeyChecking=no \
-        -o UserKnownHostsFile=/dev/null \
-        -o LogLevel=ERROR \
-        ec2-user@$PUBLIC_IP \
-        "sudo cat /var/lib/jenkins/secrets/initialAdminPassword 2>/dev/null" || echo "")
+    print_success "Instance is running"
+    echo ""
 
-    if [ -n "$INITIAL_PASSWORD" ]; then
-        echo "✅ Jenkins initial admin password retrieved"
-    else
-        echo "⚠️  Could not retrieve password automatically"
-        echo "   This may be because:"
-        echo "   - SSH key not found at ~/.ssh/${KEY_NAME}.pem"
-        echo "   - Jenkins is still initializing"
-        echo "   - File permissions on the key"
+    # Get instance details
+    INSTANCE_INFO=$(aws ec2 describe-instances \
+        --region "$AWS_REGION" \
+        --instance-ids "$INSTANCE_ID" \
+        --query 'Reservations[0].Instances[0]')
+
+    PUBLIC_IP=$(echo "$INSTANCE_INFO" | jq -r '.PublicIpAddress')
+    PRIVATE_IP=$(echo "$INSTANCE_INFO" | jq -r '.PrivateIpAddress')
+    AVAILABILITY_ZONE=$(echo "$INSTANCE_INFO" | jq -r '.Placement.AvailabilityZone')
+
+    print_info "Instance Details:"
+    echo -e "    ${BLUE}Instance ID:${NC}        $INSTANCE_ID"
+    echo -e "    ${BLUE}Public IP:${NC}          $PUBLIC_IP"
+    echo -e "    ${BLUE}Private IP:${NC}         $PRIVATE_IP"
+    echo -e "    ${BLUE}Availability Zone:${NC}  $AVAILABILITY_ZONE"
+    echo -e "    ${BLUE}Security Group:${NC}     $SECURITY_GROUP_ID"
+    echo ""
+}
+
+wait_for_jenkins() {
+    print_header "Step 7: Waiting for Jenkins Initialization"
+
+    print_info "The User Data script is now running on the EC2 instance"
+    print_info "This process takes 5-10 minutes and includes:"
+    print_info "  • System package updates"
+    print_info "  • Java 17 installation"
+    print_info "  • Jenkins LTS installation and startup"
+    print_info "  • Docker installation"
+    print_info "  • AWS CLI v2 and SAM CLI installation"
+    print_info "  • Python 3.11 and pytest installation"
+    echo ""
+
+    print_info "Checking Jenkins availability..."
+    echo ""
+
+    JENKINS_READY=false
+    MAX_ATTEMPTS=60
+    ATTEMPT=0
+
+    while [ $ATTEMPT -lt $MAX_ATTEMPTS ]; do
+        ATTEMPT=$((ATTEMPT + 1))
+
+        # Check if Jenkins port is accessible
+        HTTP_CODE=$(curl -s -o /dev/null -w "%{http_code}" "http://$PUBLIC_IP:8080" 2>/dev/null || echo "000")
+
+        if echo "$HTTP_CODE" | grep -q "200\|403"; then
+            print_success "Jenkins web interface is accessible (HTTP $HTTP_CODE)"
+            JENKINS_READY=true
+            break
+        fi
+
+        if [ $((ATTEMPT % 4)) -eq 0 ]; then
+            print_info "Still waiting for Jenkins... ($ATTEMPT/$MAX_ATTEMPTS attempts)"
+        fi
+        sleep 15
+    done
+
+    if [ "$JENKINS_READY" = false ]; then
+        print_warning "Jenkins is taking longer than expected"
+        echo ""
+        print_info "The User Data script may still be running. You can:"
+        print_info "  1. Wait a few more minutes and check: http://$PUBLIC_IP:8080"
+        print_info "  2. SSH in to check progress:"
+        print_command "ssh -i ~/.ssh/$KEY_NAME.pem ec2-user@$PUBLIC_IP"
+        print_command "sudo tail -f /var/log/jenkins-setup.log"
     fi
-else
-    INITIAL_PASSWORD=""
-fi
 
-echo ""
+    echo ""
+}
 
-# Step 9: Save instance information
-echo "Step 9: Saving instance information..."
-echo ""
+retrieve_password() {
+    print_header "Step 8: Retrieving Jenkins Admin Password"
 
-INSTANCE_INFO_FILE="$PROJECT_ROOT/.jenkins-ec2-$ENVIRONMENT.info"
+    print_info "Jenkins generates a random admin password on first startup"
+    print_info "Location: /var/lib/jenkins/secrets/initialAdminPassword"
+    echo ""
 
-cat > "$INSTANCE_INFO_FILE" << EOF
+    if [ "$JENKINS_READY" = true ]; then
+        print_info "Attempting SSH retrieval..."
+        echo ""
+
+        INITIAL_PASSWORD=$(ssh -i ~/.ssh/${KEY_NAME}.pem \
+            -o StrictHostKeyChecking=no \
+            -o UserKnownHostsFile=/dev/null \
+            -o LogLevel=ERROR \
+            ec2-user@$PUBLIC_IP \
+            "sudo cat /var/lib/jenkins/secrets/initialAdminPassword 2>/dev/null" || echo "")
+
+        if [ -n "$INITIAL_PASSWORD" ]; then
+            print_success "Jenkins admin password retrieved"
+        else
+            print_warning "Could not retrieve password automatically"
+            echo ""
+            print_info "Possible reasons:"
+            print_info "  • SSH key not at ~/.ssh/${KEY_NAME}.pem"
+            print_info "  • Jenkins still initializing"
+            print_info "  • SSH permissions issue"
+            INITIAL_PASSWORD=""
+        fi
+    else
+        INITIAL_PASSWORD=""
+    fi
+
+    echo ""
+}
+
+save_info() {
+    print_header "Step 9: Saving Instance Information"
+
+    INSTANCE_INFO_FILE="$PROJECT_ROOT/.jenkins-ec2-$ENVIRONMENT.info"
+
+    cat > "$INSTANCE_INFO_FILE" << EOF
 # Jenkins EC2 Instance Information
 # Environment: $ENVIRONMENT
 # Created: $(date)
@@ -484,62 +782,116 @@ KEY_NAME=$KEY_NAME
 INITIAL_PASSWORD=$INITIAL_PASSWORD
 EOF
 
-echo "✅ Instance information saved to: $INSTANCE_INFO_FILE"
-echo ""
-
-# Clean up temporary files
-rm -f /tmp/jenkins-userdata.sh
-
-# Step 10: Display summary
-echo "============================================"
-echo "Phase 5: Jenkins EC2 Setup Complete ✅"
-echo "============================================"
-echo ""
-echo "Instance Information:"
-echo "  Instance ID: $INSTANCE_ID"
-echo "  Public IP: $PUBLIC_IP"
-echo "  Region: $AWS_REGION"
-echo ""
-echo "Jenkins Access:"
-echo "  URL: http://$PUBLIC_IP:8080"
-if [ -n "$INITIAL_PASSWORD" ]; then
-    echo "  Initial Admin Password: $INITIAL_PASSWORD"
-else
-    echo "  Initial Admin Password: (retrieve manually - see instructions below)"
-fi
-echo ""
-echo "SSH Access:"
-echo "  ssh -i ~/.ssh/${KEY_NAME}.pem ec2-user@$PUBLIC_IP"
-echo ""
-echo "Next Steps:"
-echo "1. Open Jenkins in browser: http://$PUBLIC_IP:8080"
-echo "2. Enter the initial admin password shown above"
-echo "3. Install suggested plugins (or select specific plugins)"
-echo "4. Create your first admin user"
-echo "5. Configure Jenkins URL to: http://$PUBLIC_IP:8080"
-echo ""
-if [ -z "$INITIAL_PASSWORD" ]; then
-    echo "To retrieve initial password manually:"
-    echo "  ssh -i ~/.ssh/${KEY_NAME}.pem ec2-user@$PUBLIC_IP"
-    echo "  sudo cat /var/lib/jenkins/secrets/initialAdminPassword"
+    print_success "Instance information saved"
+    print_info "File: $INSTANCE_INFO_FILE"
     echo ""
-fi
-echo "To configure Jenkins jobs:"
-echo "  ./scripts/aws-ci-cd/41-configure-jenkins-jobs.sh --$ENVIRONMENT"
-echo ""
-echo "Cost Estimate:"
-echo "  EC2 t2.small: ~\$0.023/hour = ~\$17/month (24/7)"
-echo "  EBS 20GB: ~\$2/month"
-echo "  Total: ~\$19/month (or ~\$5-8/month if stopped when not in use)"
-echo ""
-echo "To stop instance when not in use:"
-echo "  ./scripts/aws-ci-cd/94-stop-jenkins-ec2.sh --$ENVIRONMENT"
-echo ""
-echo "To start instance again:"
-echo "  ./scripts/aws-ci-cd/93-start-jenkins-ec2.sh --$ENVIRONMENT"
-echo ""
-echo "Troubleshooting:"
-echo "  View setup logs: ssh and run 'sudo tail -f /var/log/jenkins-setup.log'"
-echo "  Check Jenkins status: sudo systemctl status jenkins"
-echo "  Restart Jenkins: sudo systemctl restart jenkins"
-echo "============================================"
+
+    # Clean up
+    rm -f /tmp/jenkins-userdata.sh
+}
+
+display_summary() {
+    print_header "Phase 5: Jenkins EC2 Setup Complete ✅"
+
+    echo -e "${GREEN}╔════════════════════════════════════════════════════════════════╗${NC}"
+    echo -e "${GREEN}║       JENKINS CI/CD SERVER DEPLOYED! ✓                       ║${NC}"
+    echo -e "${GREEN}╚════════════════════════════════════════════════════════════════╝${NC}"
+    echo ""
+
+    print_info "Instance Information:"
+    echo -e "    ${BLUE}Instance ID:${NC}  $INSTANCE_ID"
+    echo -e "    ${BLUE}Public IP:${NC}    $PUBLIC_IP"
+    echo -e "    ${BLUE}Region:${NC}       $AWS_REGION"
+    echo ""
+
+    print_info "Jenkins Access:"
+    echo -e "    ${BLUE}URL:${NC}          ${GREEN}http://$PUBLIC_IP:8080${NC}"
+    if [ -n "$INITIAL_PASSWORD" ]; then
+        echo -e "    ${BLUE}Password:${NC}     ${YELLOW}$INITIAL_PASSWORD${NC}"
+    else
+        echo -e "    ${BLUE}Password:${NC}     (retrieve manually - see below)"
+    fi
+    echo ""
+
+    print_info "SSH Access:"
+    print_command "ssh -i ~/.ssh/${KEY_NAME}.pem ec2-user@$PUBLIC_IP"
+    echo ""
+
+    print_header "Next Steps"
+
+    print_info "1. Open Jenkins in browser:"
+    print_command "open http://$PUBLIC_IP:8080"
+    echo ""
+
+    print_info "2. Enter initial admin password (shown above or retrieve with):"
+    if [ -z "$INITIAL_PASSWORD" ]; then
+        print_command "ssh -i ~/.ssh/${KEY_NAME}.pem ec2-user@$PUBLIC_IP"
+        print_command "sudo cat /var/lib/jenkins/secrets/initialAdminPassword"
+        echo ""
+    fi
+
+    print_info "3. Install suggested plugins"
+    echo ""
+
+    print_info "4. Create admin user"
+    echo ""
+
+    print_info "5. Configure Jenkins jobs:"
+    print_command "./scripts/aws-ci-cd/41-configure-jenkins-jobs.sh --$ENVIRONMENT"
+    echo ""
+
+    print_header "Cost Management"
+
+    print_info "Monthly costs:"
+    print_info "  • Running 24/7: ~\$17 (EC2) + \$2 (EBS) = \$19/month"
+    print_info "  • Running 8hrs/day: ~\$6 (EC2) + \$2 (EBS) = \$8/month"
+    print_info "  • Stopped: \$0 (EC2) + \$2 (EBS) = \$2/month"
+    echo ""
+
+    print_info "To stop instance (save \$17/month):"
+    print_command "./scripts/aws-ci-cd/94-stop-jenkins-ec2.sh --$ENVIRONMENT"
+    echo ""
+
+    print_info "To start instance:"
+    print_command "./scripts/aws-ci-cd/93-start-jenkins-ec2.sh --$ENVIRONMENT"
+    echo ""
+
+    print_header "Troubleshooting"
+
+    print_info "View setup logs:"
+    print_command "ssh -i ~/.ssh/${KEY_NAME}.pem ec2-user@$PUBLIC_IP"
+    print_command "sudo tail -f /var/log/jenkins-setup.log"
+    echo ""
+
+    print_info "Check Jenkins status:"
+    print_command "sudo systemctl status jenkins"
+    echo ""
+
+    print_info "Restart Jenkins:"
+    print_command "sudo systemctl restart jenkins"
+    echo ""
+}
+
+################################################################################
+# Main Execution
+################################################################################
+
+main() {
+    show_introduction
+    check_prerequisites
+    create_security_group
+    get_ami
+    prepare_user_data
+    launch_instance
+    wait_for_instance
+    wait_for_jenkins
+    retrieve_password
+    save_info
+    display_summary
+
+    print_success "Jenkins EC2 setup complete!"
+    echo ""
+}
+
+# Run main function
+main "$@"

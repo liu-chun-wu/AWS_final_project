@@ -190,14 +190,14 @@ All scripts require `--demo` or `--prod` flag.
 
 ---
 
-### 12-setup-jenkins-ec2.sh
+### 40-setup-jenkins-ec2.sh
 
 **Purpose:** Launch Jenkins on EC2 instance
 
 **Usage:**
 ```bash
-./scripts/aws-ci-cd/12-setup-jenkins-ec2.sh --demo
-./scripts/aws-ci-cd/12-setup-jenkins-ec2.sh --prod
+./scripts/aws-ci-cd/40-setup-jenkins-ec2.sh --demo
+./scripts/aws-ci-cd/40-setup-jenkins-ec2.sh --prod
 ```
 
 **What it does:**
@@ -230,14 +230,14 @@ All scripts require `--demo` or `--prod` flag.
 
 ---
 
-### 13-configure-jenkins-jobs.sh
+### 41-configure-jenkins-jobs.sh
 
 **Purpose:** Create CI and CD Jenkins jobs
 
 **Usage:**
 ```bash
-./scripts/aws-ci-cd/13-configure-jenkins-jobs.sh --demo
-./scripts/aws-ci-cd/13-configure-jenkins-jobs.sh --prod
+./scripts/aws-ci-cd/41-configure-jenkins-jobs.sh --demo
+./scripts/aws-ci-cd/41-configure-jenkins-jobs.sh --prod
 ```
 
 **What it does:**
@@ -694,9 +694,9 @@ Select image to deploy (1-3): 2
 
 # If all above succeed, proceed:
 
-# Phase 4: Jenkins EC2 Automation
-./scripts/aws-ci-cd/12-setup-jenkins-ec2.sh --demo
-./scripts/aws-ci-cd/13-configure-jenkins-jobs.sh --demo
+# Phase 4-5: Jenkins EC2 Automation
+./scripts/aws-ci-cd/40-setup-jenkins-ec2.sh --demo
+./scripts/aws-ci-cd/41-configure-jenkins-jobs.sh --demo
 
 # Now: git push triggers full CI/CD automatically!
 ```

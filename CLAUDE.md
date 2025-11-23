@@ -81,8 +81,6 @@ docker exec <jenkins-container> cat /var/jenkins_home/secrets/initialAdminPasswo
 # 10-19: Infrastructure Setup (one-time)
 ./scripts/aws-ci-cd/10-check-prerequisites.sh    # Verify AWS environment
 ./scripts/aws-ci-cd/11-setup-ecr.sh              # Create ECR repository
-./scripts/aws-ci-cd/12-setup-jenkins-ec2.sh      # Launch Jenkins on EC2
-./scripts/aws-ci-cd/13-configure-jenkins-jobs.sh # Create CI/CD jobs
 
 # 20-29: CI Operations (build/test/push)
 ./scripts/aws-ci-cd/20-ci-build-and-push.sh      # Build & push to ECR
@@ -94,6 +92,10 @@ docker exec <jenkins-container> cat /var/jenkins_home/secrets/initialAdminPasswo
 ./scripts/aws-ci-cd/32-cd-verify-deployment.sh   # Test endpoints
 ./scripts/aws-ci-cd/33-cd-redeploy-image.sh      # Redeploy existing image
 ./scripts/aws-ci-cd/34-cd-rollback.sh            # Rollback to previous
+
+# 40-49: Jenkins Setup (after manual validation)
+./scripts/aws-ci-cd/40-setup-jenkins-ec2.sh      # Launch Jenkins on EC2
+./scripts/aws-ci-cd/41-configure-jenkins-jobs.sh # Create CI/CD jobs
 
 # 90-99: Utilities and Cleanup
 ./scripts/aws-ci-cd/90-check-aws-status.sh       # Check AWS resources
