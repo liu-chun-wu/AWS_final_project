@@ -68,32 +68,37 @@ aws-lab-flask-ci-cd/
 │   ├── samconfig-demo.toml     # Demo backend config
 │   └── samconfig-prod.toml     # Production backend config
 ├── scripts/
-│   ├── local/                  # Manual CI-only helpers
+│   ├── local-ci-only/          # Local CI scripts (no AWS deployment)
+│   │   ├── setup-jenkins.sh
 │   │   ├── test-local.sh
 │   │   └── build-local.sh
-│   └── jenkins/              # Shared Jenkins automation (local + EC2)
-│       ├── 40-setup-jenkins-local.sh    # Setup: local Dockerized Jenkins
+│   └── aws-ci-cd/              # Full CI/CD scripts for AWS
+│       ├── 10-check-prerequisites.sh    # Setup: Verify AWS access
 │       ├── 11-setup-ecr.sh              # Setup: Create ECR repo
+│       ├── 12-setup-jenkins-ec2.sh      # Setup: Launch Jenkins on EC2
+│       ├── 13-configure-jenkins-jobs.sh # Setup: Create CI/CD jobs
 │       ├── 20-ci-build-and-push.sh      # CI: Build + push image
+│       ├── 21-ci-validate-image.sh      # CI: Verify image in ECR
 │       ├── 30-cd-validate-sam.sh        # CD: Validate SAM template
 │       ├── 31-cd-deploy-sam.sh          # CD: Deploy to Lambda
 │       ├── 32-cd-verify-deployment.sh   # CD: Test endpoints
-│       ├── 41-setup-jenkins-ec2.sh      # Setup: Launch Jenkins on EC2
-│       ├── 42-configure-jenkins-jobs.sh # Setup: Create CI/CD jobs
+│       ├── 33-cd-redeploy-image.sh      # CD: Redeploy existing image
+│       ├── 34-cd-rollback.sh            # CD: Rollback to previous
+│       ├── 90-check-aws-status.sh       # Utility: Check resources
 │       ├── 91-check-jenkins-status.sh   # Utility: Check Jenkins EC2
+│       ├── 92-view-cd-logs.sh           # Utility: View deployment logs
 │       ├── 93-start-jenkins-ec2.sh      # Utility: Start EC2
-│       └── 94-stop-jenkins-ec2.sh       # Utility: Stop EC2
+│       ├── 94-stop-jenkins-ec2.sh       # Utility: Stop EC2
+│       └── 99-cleanup-all.sh            # Cleanup: Delete everything
 ├── docs/
-│   ├── overview.md             # Architecture summary + branch strategy
-│   ├── scripts.md              # Concise script catalog
-│   ├── jenkins.md              # Local + EC2 Jenkins instructions
-│   ├── troubleshooting.md      # Quick fixes for common issues
-│   └── validation.md           # End-to-end validation checklist
+│   ├── SCRIPT_GUIDE.md         # Detailed script reference
+│   └── JENKINS_EC2_SETUP.md    # Jenkins on EC2 guide
 ├── .gitignore
 ├── README.md
 ├── CLAUDE.md
 ├── BRANCH_STRATEGY.md
-└── docs/archived/            # Full history, diaries, and legacy guides
+├── DEVELOPMENT_DIARY.md
+└── VALIDATION.md
 ```
 
 ## Implementation Phases
@@ -141,19 +146,21 @@ Test each step manually BEFORE automating with Jenkins. This reduces risk, speed
 - **GATE: Both 3a AND 3b must succeed before Phase 4**
 - Validate: Lambda responding, API Gateway working
 
-**Phase 4: Jenkinsfile Preparation + Local Jenkins Automation**
-- Define Jenkinsfile-CI and Jenkinsfile-CD (same stages as manual 3a/3b)
-- Commit both Jenkinsfiles so Jenkins always pulls from Git
-- Launch Jenkins locally via Docker (script in `scripts/local/`)
-  - Mount Docker socket so Jenkins can build/push images
-  - Configure AWS credentials (profile or env vars) so local Jenkins can call the real AWS services
-  - Create two jobs pointing at the committed Jenkinsfiles
-- Run both pipelines locally to prove CI (test/build/push) and CD (deploy/verify) succeed under Jenkins automation **before** touching EC2
-- **Rationale**: Developers can debug Jenkins behavior cheaply and still hit AWS using their own credentials
-- **Benefit**: By the time EC2 Jenkins launches, both manual scripts and Jenkins automation are already green
-- Validate: Local Jenkins pipelines complete, Lambda responds via API Gateway
+**Phase 4: Jenkinsfile Preparation** *(NEW - Define Before Deploy)*
+- Create `ci/Jenkinsfile-CI` locally
+  - Stages: Checkout → Test → Build → Push to ECR
+  - Parameters: BACKEND_DIR, BRANCH_NAME
+  - Mirrors Phase 3a manual steps
+- Create `ci/Jenkinsfile-CD` locally
+  - Stages: Validate Image → Deploy SAM → Verify Health
+  - Parameters: IMAGE_TAG, BACKEND_TYPE
+  - Mirrors Phase 3b manual steps
+- Commit both Jenkinsfiles to Git
+- **Rationale**: Define pipelines as code BEFORE Jenkins deployment
+- **Benefit**: Jenkins pulls complete configs from Git (no manual configuration in UI)
+- Validate: Jenkinsfiles in Git repository
 
-**Phase 5: Jenkins EC2 Deployment** *(Deploy AFTER Local Jenkins Proves Pipelines)*
+**Phase 5: Jenkins EC2 Deployment** *(Deploy AFTER Manual Validation)*
 - Provision EC2 instance (t2.small, Amazon Linux 2023)
 - Install: Java 17, Jenkins LTS, Docker, AWS CLI v2, SAM CLI, Git
 - Configure IAM (use existing LabRole via instance profile)
@@ -165,22 +172,29 @@ Test each step manually BEFORE automating with Jenkins. This reduces risk, speed
 - **Benefit**: No deploy → debug → modify cycles
 - Validate: Jenkins accessible, jobs configured from Git
 
-**Phase 6: Jenkins Pipeline Testing on EC2**
-- Manually trigger CI job on EC2 Jenkins to ensure it mirrors successful local Jenkins runs
-- Manually trigger CD job with explicit IMAGE_TAG to confirm connectivity/IAM from EC2
-- Validate CI→CD chaining on EC2 Jenkins just as done locally
-- **Rationale**: Final confirmation that infrastructure differences (instance role, network, IAM) do not change behavior
-- **Benefit**: EC2 Jenkins becomes a deployment appliance—no feature debugging remains
-- Validate: Both jobs green, API Gateway confirms deployment
+**Phase 6: Jenkins Pipeline Testing** *(Test Automation Separately)*
+- Test CI pipeline manually in Jenkins:
+  - Trigger `flask-ci` job
+  - Verify: Test → Build → Push works (same as Phase 3a)
+- Test CD pipeline manually in Jenkins:
+  - Trigger `flask-cd` job with IMAGE_TAG parameter
+  - Verify: Validate → Deploy → Verify works (same as Phase 3b)
+- Test CI→CD trigger:
+  - Verify: CI success automatically triggers CD
+  - Verify: Correct IMAGE_TAG passed to CD
+- **Rationale**: Validate Jenkins automates proven steps
+- **Benefit**: Higher confidence (we already know manual steps work!)
+- Validate: Both pipelines green, automation working
 
-**Phase 7: End-to-End Flow**
-- Configure GitHub webhook (points to EC2 Jenkins) for Jeffery CI
+**Phase 7: End-to-End Automation** *(Webhook Integration)*
+- Configure GitHub webhook (points to EC2 Jenkins)
 - Test Jeffery branch automation:
-  - Push code → CI → view IMAGE_TAG
-- Document manual promotion flow:
-  - Trigger `flask-cd` with selected IMAGE_TAG → demo-backend or prod-backend
-- **Rationale**: Keep deploys intentional while retaining automated CI feedback
-- Validate: Push to Git triggers CI; manual CD run succeeds with documented steps
+  - Push code → CI → CD → demo-backend
+- Test main branch automation:
+  - Push code → CI → CD → prod-backend
+- Branch-based routing validated
+- **Rationale**: Full automation as final step (not first step)
+- Validate: Push to Git triggers complete CI/CD flow
 
 **Phase 8: Recovery Scripts** *(Optional/Utility)*
 - Rollback script (`34-cd-rollback.sh`): Deploy previous image
@@ -218,8 +232,8 @@ Test each step manually BEFORE automating with Jenkins. This reduces risk, speed
 **Folder Naming Convention:**
 
 ```
-scripts/local/        Explicit: Manual CI/CD + local Jenkins runners
-scripts/jenkins/    Explicit: Shared AWS automation + EC2 Jenkins helpers
+scripts/local-ci-only/    Explicit: CI testing without AWS
+scripts/aws-ci-cd/        Explicit: Full CI/CD pipeline in AWS
 ```
 
 Benefits:
@@ -420,7 +434,7 @@ Git                # Version control
    - ✅ Docker container works identically to local
    - ✅ All tests pass (18/18)
    - ✅ Lambda responds to API Gateway requests
-   - ✅ CI webhook + manual CD promotion process documented
+   - ✅ CI/CD fully automated
 
 2. **Performance:**
    - ✅ Build time < 5 minutes
@@ -444,15 +458,14 @@ Git                # Version control
 
 ## Timeline Estimate
 
-- Phase 1 (Local Flask): 4–6 hours
-- Phase 2 (Docker): 3–4 hours
-- Phase 3 (Manual CI + CD scripts): 4–6 hours
-- Phase 4 (Jenkinsfiles + Local Jenkins automation): 6–8 hours
-- Phase 5 (Jenkins on EC2): 6–8 hours
-- Phase 6 (EC2 pipeline testing + Webhooks): 4–6 hours
-- Phase 7 (Recovery tooling + Documentation polish): 6–8 hours
+- Phase 1 (Local Flask): 4-6 hours
+- Phase 2 (Docker): 3-4 hours
+- Phase 3 (Manual SAM): 4-6 hours
+- Phase 4 (Jenkins EC2): 8-10 hours
+- Phase 5 (Automation): 4-6 hours
+- Phase 6 (Documentation): 6-8 hours
 
-**Total:** ~33–46 hours (actual: 40 hours over 18 days)
+**Total:** ~30-40 hours (actual: 40 hours over 18 days)
 
 ## Notes
 

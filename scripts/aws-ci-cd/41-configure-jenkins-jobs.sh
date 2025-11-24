@@ -1,8 +1,8 @@
 #!/bin/bash
 ################################################################################
-# Script: 42-configure-jenkins-jobs.sh
+# Script: 41-configure-jenkins-jobs.sh
 # Purpose: Configure Jenkins CI/CD jobs automatically via REST API
-# Usage: ./42-configure-jenkins-jobs.sh [--local|--ec2] [--demo|--prod]
+# Usage: ./41-configure-jenkins-jobs.sh [--demo|--prod]
 #
 ################################################################################
 # What is Jenkins Job Configuration?
@@ -76,7 +76,7 @@
 #
 # Prerequisites:
 # --------------
-# • Jenkins EC2 instance running (from 41-setup-jenkins-ec2.sh)
+# • Jenkins EC2 instance running (from 40-setup-jenkins-ec2.sh)
 # • Jenkins initial setup wizard completed
 # • Admin user created in Jenkins
 # • GitHub repository with ci/Jenkinsfile-CI and ci/Jenkinsfile-CD
@@ -140,65 +140,21 @@ print_explain() {
 # Argument Parsing
 ################################################################################
 
-usage() {
-    cat <<EOF
-Usage: $0 [--local|--ec2] [--demo|--prod]
-
-Options:
-  --local        Configure Jenkins jobs on the local Dockerized controller.
-  --ec2          Configure Jenkins jobs on the EC2 instance provisioned by 41-setup-jenkins-ec2.sh.
-  --demo         Use demo environment metadata (default).
-  --prod         Use production environment metadata.
-  -h, --help     Show this help text.
-EOF
-}
-
-TARGET=""
-ENVIRONMENT="demo"
-
-while [[ $# -gt 0 ]]; do
-    case "$1" in
-        --local)
-            TARGET="local"
-            shift
-            ;;
-        --ec2)
-            TARGET="ec2"
-            shift
-            ;;
-        --demo)
-            ENVIRONMENT="demo"
-            shift
-            ;;
-        --prod)
-            ENVIRONMENT="prod"
-            shift
-            ;;
-        -h|--help)
-            usage
-            exit 0
-            ;;
-        *)
-            echo "Unknown option: $1"
-            usage
-            exit 1
-            ;;
-    esac
-done
-
-if [ -z "$TARGET" ]; then
-    echo "Error: you must specify --local or --ec2"
-    usage
+ENVIRONMENT=""
+if [ "$1" == "--demo" ]; then
+    ENVIRONMENT="demo"
+elif [ "$1" == "--prod" ]; then
+    ENVIRONMENT="prod"
+else
+    echo "Usage: $0 [--demo|--prod]"
+    echo "  --demo  Configure Jenkins for demo environment"
+    echo "  --prod  Configure Jenkins for production environment"
     exit 1
 fi
-
-TARGET_DESCRIPTION=$([ "$TARGET" = "ec2" ] && echo "EC2" || echo "local")
-TARGET_FLAG="--$TARGET"
 
 GITHUB_REPO="${GITHUB_REPO:-https://github.com/liu-chun-wu/AWS_final_project.git}"
 
 print_header "Phase 5: Jenkins Jobs Configuration"
-echo "Target Jenkins: $TARGET_DESCRIPTION"
 echo "Environment: $ENVIRONMENT"
 echo "GitHub Repository: $GITHUB_REPO"
 echo ""
@@ -207,53 +163,43 @@ echo ""
 # STEP 1: Load Jenkins EC2 Instance Information
 ################################################################################
 
-if [ "$TARGET" = "ec2" ]; then
-    print_header "Step 1: Loading Jenkins EC2 Instance Information"
+print_header "Step 1: Loading Jenkins EC2 Instance Information"
 
-    print_info "What are we doing?"
-    print_explain "Loading instance metadata saved by script 41-setup-jenkins-ec2.sh"
-    print_explain "This file contains: Instance ID, Public IP, Security Group, etc."
-    print_explain "File location: .jenkins-ec2-$ENVIRONMENT.info (in project root)"
+print_info "What are we doing?"
+print_explain "Loading instance metadata saved by script 40-setup-jenkins-ec2.sh"
+print_explain "This file contains: Instance ID, Public IP, Security Group, etc."
+print_explain "File location: .jenkins-ec2-$ENVIRONMENT.info (in project root)"
+echo ""
+
+INSTANCE_INFO_FILE="$PROJECT_ROOT/.jenkins-ec2-$ENVIRONMENT.info"
+
+if [ ! -f "$INSTANCE_INFO_FILE" ]; then
+    print_error "Instance information file not found: $INSTANCE_INFO_FILE"
     echo ""
-
-    INSTANCE_INFO_FILE="$PROJECT_ROOT/.jenkins-ec2-$ENVIRONMENT.info"
-
-    if [ ! -f "$INSTANCE_INFO_FILE" ]; then
-        print_error "Instance information file not found: $INSTANCE_INFO_FILE"
-        echo ""
-        print_warning "This means Jenkins EC2 instance hasn't been created yet."
-        print_warning "Please run script 41 first to provision Jenkins on EC2:"
-        echo ""
-        echo "  ./scripts/jenkins/41-setup-jenkins-ec2.sh --$ENVIRONMENT"
-        echo ""
-        exit 1
-    fi
-
-    # Source the instance info (loads variables like PUBLIC_IP, INSTANCE_ID, etc.)
-    source "$INSTANCE_INFO_FILE"
-
-    if [ -z "$PUBLIC_IP" ]; then
-        print_error "PUBLIC_IP not found in instance info file"
-        print_warning "Instance info file may be corrupted or incomplete"
-        exit 1
-    fi
-
-    JENKINS_URL="http://$PUBLIC_IP:8080"
-
-    print_success "Instance information loaded successfully"
-    echo "   Instance ID: $INSTANCE_ID"
-    echo "   Public IP: $PUBLIC_IP"
-    echo "   Jenkins URL: $JENKINS_URL"
+    print_warning "This means Jenkins EC2 instance hasn't been created yet."
+    print_warning "Please run script 40 first to provision Jenkins on EC2:"
     echo ""
-else
-    print_header "Step 1: Preparing Local Jenkins Connection"
-    JENKINS_URL="${LOCAL_JENKINS_URL:-http://localhost:8080}"
-    print_info "Using local Jenkins at: $JENKINS_URL"
-    print_explain "• Make sure Docker Desktop is running."
-    print_explain "• Start the controller with ./scripts/jenkins/40-setup-jenkins-local.sh if needed."
-    print_explain "• The script will prompt for your Jenkins username/password."
+    echo "  ./scripts/aws-ci-cd/40-setup-jenkins-ec2.sh --$ENVIRONMENT"
     echo ""
+    exit 1
 fi
+
+# Source the instance info (loads variables like PUBLIC_IP, INSTANCE_ID, etc.)
+source "$INSTANCE_INFO_FILE"
+
+if [ -z "$PUBLIC_IP" ]; then
+    print_error "PUBLIC_IP not found in instance info file"
+    print_warning "Instance info file may be corrupted or incomplete"
+    exit 1
+fi
+
+JENKINS_URL="http://$PUBLIC_IP:8080"
+
+print_success "Instance information loaded successfully"
+echo "   Instance ID: $INSTANCE_ID"
+echo "   Public IP: $PUBLIC_IP"
+echo "   Jenkins URL: $JENKINS_URL"
+echo ""
 
 ################################################################################
 # STEP 2: Check Jenkins Accessibility
@@ -264,15 +210,9 @@ print_header "Step 2: Checking Jenkins Accessibility"
 print_info "What are we checking?"
 print_explain "Verifying Jenkins web interface is responding to HTTP requests"
 print_explain "This ensures:"
-if [ "$TARGET" = "ec2" ]; then
-    print_explain "  • EC2 instance is running"
-    print_explain "  • Jenkins service has started (can take 2-3 minutes after EC2 boot)"
-    print_explain "  • Security group allows inbound traffic on port 8080"
-else
-    print_explain "  • Docker container is running"
-    print_explain "  • Jenkins finished booting inside the container"
-    print_explain "  • Port 8080 is free on localhost"
-fi
+print_explain "  • EC2 instance is running"
+print_explain "  • Jenkins service has started (can take 2-3 minutes after EC2 boot)"
+print_explain "  • Security group allows inbound traffic on port 8080"
 print_explain "  • No firewall blocking our requests"
 echo ""
 
@@ -314,34 +254,22 @@ if [ "$JENKINS_ACCESSIBLE" = false ]; then
     echo ""
     print_warning "Troubleshooting steps:"
     echo ""
-    if [ "$TARGET" = "ec2" ]; then
-        echo "1. Verify EC2 instance is running:"
-        echo "   aws ec2 describe-instances --instance-ids $INSTANCE_ID \\"
-        echo "     --query 'Reservations[0].Instances[0].State.Name'"
-        echo ""
-        echo "2. Check Jenkins service status via SSH:"
-        echo "   ssh -i ~/.ssh/${KEY_NAME}.pem ec2-user@$PUBLIC_IP \\"
-        echo "     'sudo systemctl status jenkins'"
-        echo ""
-        echo "3. View Jenkins startup logs:"
-        echo "   ssh -i ~/.ssh/${KEY_NAME}.pem ec2-user@$PUBLIC_IP \\"
-        echo "     'sudo journalctl -u jenkins -n 50'"
-        echo ""
-        echo "4. Verify security group allows port 8080:"
-        echo "   aws ec2 describe-security-groups --group-ids $SECURITY_GROUP_ID \\"
-        echo "     --query 'SecurityGroups[0].IpPermissions'"
-        echo ""
-    else
-        echo "1. Ensure the Docker container is running:"
-        echo "   docker ps | grep jenkins-local"
-        echo ""
-        echo "2. View container logs:"
-        echo "   docker logs -f jenkins-local"
-        echo ""
-        echo "3. Restart the local Jenkins container:"
-        echo "   docker restart jenkins-local"
-        echo ""
-    fi
+    echo "1. Verify EC2 instance is running:"
+    echo "   aws ec2 describe-instances --instance-ids $INSTANCE_ID \\"
+    echo "     --query 'Reservations[0].Instances[0].State.Name'"
+    echo ""
+    echo "2. Check Jenkins service status via SSH:"
+    echo "   ssh -i ~/.ssh/${KEY_NAME}.pem ec2-user@$PUBLIC_IP \\"
+    echo "     'sudo systemctl status jenkins'"
+    echo ""
+    echo "3. View Jenkins startup logs:"
+    echo "   ssh -i ~/.ssh/${KEY_NAME}.pem ec2-user@$PUBLIC_IP \\"
+    echo "     'sudo journalctl -u jenkins -n 50'"
+    echo ""
+    echo "4. Verify security group allows port 8080:"
+    echo "   aws ec2 describe-security-groups --group-ids $SECURITY_GROUP_ID \\"
+    echo "     --query 'SecurityGroups[0].IpPermissions'"
+    echo ""
     exit 1
 fi
 
@@ -698,7 +626,7 @@ echo ""
 print_info "Job configuration details:"
 print_explain "• Job type: Pipeline (flow-definition)"
 print_explain "• Pipeline definition: From SCM (ci/Jenkinsfile-CD in Git)"
-print_explain "• Trigger: Manual (run when you are ready to deploy)"
+print_explain "• Trigger: GitHub push to 'main' branch (production deployments)"
 print_explain "• Parameters:"
 print_explain "  - BACKEND_DIR: Choose which backend to deploy"
 print_explain "  - IMAGE_TAG: Specific ECR image tag (or auto-detect latest)"
@@ -735,6 +663,13 @@ cat > /tmp/flask-cd-config.xml << 'CD_CONFIG_EOF'
         </hudson.model.StringParameterDefinition>
       </parameterDefinitions>
     </hudson.model.ParametersDefinitionProperty>
+    <org.jenkinsci.plugins.workflow.job.properties.PipelineTriggersJobProperty>
+      <triggers>
+        <com.cloudbees.jenkins.GitHubPushTrigger plugin="github@1.37.0">
+          <spec></spec>
+        </com.cloudbees.jenkins.GitHubPushTrigger>
+      </triggers>
+    </org.jenkinsci.plugins.workflow.job.properties.PipelineTriggersJobProperty>
   </properties>
   <definition class="org.jenkinsci.plugins.workflow.cps.CpsScmFlowDefinition" plugin="workflow-cps@2.90">
     <scm class="hudson.plugins.git.GitSCM" plugin="git@4.11.0">
@@ -814,67 +749,61 @@ print_explain "1. Developer pushes code to GitHub"
 print_explain "2. GitHub sends HTTP POST to Jenkins webhook URL"
 print_explain "3. Jenkins receives push notification"
 print_explain "4. Jenkins checks which branch was pushed (Jeffery or main)"
-print_explain "5. Jenkins triggers CI automatically; deployments use the manual flask-cd job"
+print_explain "5. Jenkins triggers appropriate job (flask-ci or flask-cd)"
 echo ""
 
-if [ "$TARGET" = "ec2" ]; then
-    print_warning "IMPORTANT: Jenkins must be publicly accessible for webhooks!"
-    print_explain "Current Jenkins URL: $JENKINS_URL"
-    print_explain "This works if your EC2 has a public IP and the security group allows port 8080"
-    echo ""
+print_warning "IMPORTANT: Jenkins must be publicly accessible for webhooks!"
+print_explain "Current Jenkins URL: $JENKINS_URL"
+print_explain "This works if your EC2 has a public IP and security group allows port 8080"
+echo ""
 
-    echo "To enable automatic builds on Git push, configure GitHub webhook:"
-    echo ""
-    echo "1. Go to your GitHub repository settings:"
-    echo "   https://github.com/liu-chun-wu/AWS_final_project/settings/hooks"
-    echo ""
-    echo "2. Click 'Add webhook' button"
-    echo ""
-    echo "3. Configure webhook with these settings:"
-    echo ""
-    print_info "Payload URL:"
-    echo "   $JENKINS_URL/github-webhook/"
-    print_explain "Must end with /github-webhook/ (Jenkins GitHub plugin endpoint)"
-    echo ""
-    print_info "Content type:"
-    echo "   application/json"
-    print_explain "JSON format for push event data"
-    echo ""
-    print_info "Secret:"
-    echo "   (leave empty or set a secret for added security)"
-    print_explain "If set, Jenkins must be configured to validate the secret"
-    echo ""
-    print_info "SSL verification:"
-    echo "   Disable SSL verification (we're using HTTP, not HTTPS)"
-    print_explain "For production, use HTTPS with valid SSL certificate"
-    echo ""
-    print_info "Which events should trigger this webhook?"
-    echo "   ☑ Just the push event"
-    print_explain "Only trigger on git push (not issues, pull requests, etc.)"
-    echo ""
-    print_info "Active:"
-    echo "   ☑ Checked"
-    print_explain "Enable webhook immediately"
-    echo ""
-    echo "4. Click 'Add webhook' to save"
-    echo ""
-    echo "5. Test webhook:"
-    echo "   a. Make a commit to Jeffery branch and push"
+echo "To enable automatic builds on Git push, configure GitHub webhook:"
+echo ""
+echo "1. Go to your GitHub repository settings:"
+echo "   https://github.com/liu-chun-wu/AWS_final_project/settings/hooks"
+echo ""
+echo "2. Click 'Add webhook' button"
+echo ""
+echo "3. Configure webhook with these settings:"
+echo ""
+print_info "Payload URL:"
+echo "   $JENKINS_URL/github-webhook/"
+print_explain "Must end with /github-webhook/ (Jenkins GitHub plugin endpoint)"
+echo ""
+print_info "Content type:"
+echo "   application/json"
+print_explain "JSON format for push event data"
+echo ""
+print_info "Secret:"
+echo "   (leave empty or set a secret for added security)"
+print_explain "If set, Jenkins must be configured to validate the secret"
+echo ""
+print_info "SSL verification:"
+echo "   Disable SSL verification (we're using HTTP, not HTTPS)"
+print_explain "For production, use HTTPS with valid SSL certificate"
+echo ""
+print_info "Which events should trigger this webhook?"
+echo "   ☑ Just the push event"
+print_explain "Only trigger on git push (not issues, pull requests, etc.)"
+echo ""
+print_info "Active:"
+echo "   ☑ Checked"
+print_explain "Enable webhook immediately"
+echo ""
+echo "4. Click 'Add webhook' to save"
+echo ""
+echo "5. Test webhook:"
+echo "   a. Make a commit to Jeffery branch and push"
 echo "   b. Check GitHub webhook page for delivery (green checkmark)"
-echo "   c. Verify Jenkins CI job was triggered automatically (flask-cd remains manual)"
-    echo ""
+echo "   c. Verify Jenkins CI job was triggered automatically"
+echo ""
 
-    print_warning "EC2 Public IP Changes:"
-    print_explain "AWS Learner Lab EC2 instances get new public IPs when stopped/started"
-    print_explain "If you stop the EC2 instance (to save costs), the IP will change on restart"
-    print_explain "You'll need to update the webhook URL with the new IP address"
-    print_explain "Use script 93-start-jenkins-ec2.sh which shows the new webhook URL"
-    echo ""
-else
-    print_warning "Webhooks require Jenkins to be reachable from GitHub."
-    print_explain "For local Jenkins you can run jobs manually or expose it via a tunnel (ngrok) before configuring a webhook."
-    echo ""
-fi
+print_warning "EC2 Public IP Changes:"
+print_explain "AWS Learner Lab EC2 instances get new public IPs when stopped/started"
+print_explain "If you stop the EC2 instance (to save costs), the IP will change on restart"
+print_explain "You'll need to update the webhook URL with the new IP address"
+print_explain "Use script 93-start-jenkins-ec2.sh which shows the new webhook URL"
+echo ""
 
 ################################################################################
 # STEP 8: Summary and Next Steps
@@ -959,20 +888,11 @@ echo "   curl https://<api-id>.execute-api.us-east-1.amazonaws.com/Prod/health"
 echo ""
 echo ""
 
-if [ "$TARGET" = "ec2" ]; then
-    echo "Step 3: Configure GitHub webhook (for automation)"
-    echo "----------------------------------------"
-    echo "Follow instructions in Step 7 above to enable automatic triggering"
-    echo ""
-    echo ""
-else
-    echo "Step 3: (Optional) Expose local Jenkins for webhooks"
-    echo "----------------------------------------"
-    echo "Local Jenkins typically runs behind Docker on localhost."
-    echo "Use a tunneling tool (e.g., ngrok) if you want GitHub to reach it."
-    echo ""
-    echo ""
-fi
+echo "Step 3: Configure GitHub webhook (for automation)"
+echo "----------------------------------------"
+echo "Follow instructions in Step 7 above to enable automatic triggering"
+echo ""
+echo ""
 
 echo "Step 4: Monitor job executions"
 echo "----------------------------------------"
@@ -989,21 +909,12 @@ echo ""
 echo "View job console output:"
 echo "  • Click job → Click build number → Console Output"
 echo ""
-if [ "$TARGET" = "ec2" ]; then
-    echo "Check Jenkins EC2 logs via SSH:"
-    echo "  ssh -i ~/.ssh/${KEY_NAME}.pem ec2-user@$PUBLIC_IP 'sudo journalctl -u jenkins -f'"
-    echo ""
-    echo "Restart Jenkins service:"
-    echo "  ssh -i ~/.ssh/${KEY_NAME}.pem ec2-user@$PUBLIC_IP 'sudo systemctl restart jenkins'"
-    echo ""
-else
-    echo "Check local Jenkins container logs:"
-    echo "  docker logs -f jenkins-local"
-    echo ""
-    echo "Restart local Jenkins container:"
-    echo "  docker restart jenkins-local"
-    echo ""
-fi
+echo "Check Jenkins EC2 logs via SSH:"
+echo "  ssh -i ~/.ssh/${KEY_NAME}.pem ec2-user@$PUBLIC_IP 'sudo journalctl -u jenkins -f'"
+echo ""
+echo "Restart Jenkins service:"
+echo "  ssh -i ~/.ssh/${KEY_NAME}.pem ec2-user@$PUBLIC_IP 'sudo systemctl restart jenkins'"
+echo ""
 echo "View installed plugins:"
 echo "  $JENKINS_URL/pluginManager/installed"
 echo ""
@@ -1011,7 +922,7 @@ echo "Jenkins configuration:"
 echo "  $JENKINS_URL/configure"
 echo ""
 echo "Re-run job configuration:"
-echo "  ./scripts/jenkins/42-configure-jenkins-jobs.sh $TARGET_FLAG --$ENVIRONMENT"
+echo "  ./scripts/aws-ci-cd/41-configure-jenkins-jobs.sh --$ENVIRONMENT"
 echo ""
 
 print_header "Configuration Complete!"

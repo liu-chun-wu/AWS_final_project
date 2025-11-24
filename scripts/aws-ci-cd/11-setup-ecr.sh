@@ -389,7 +389,7 @@ list_images() {
     if [ "$IMAGE_COUNT" -eq 0 ]; then
         print_info "No images in repository yet"
         print_info "Images will be added when you run Phase 3a (Manual CI Testing):"
-        print_command "./scripts/jenkins/20-ci-build-and-push.sh --demo"
+        print_command "./scripts/aws-ci-cd/20-ci-build-and-push.sh --demo"
     else
         print_success "Found $IMAGE_COUNT image(s) in repository"
         echo ""
@@ -449,7 +449,7 @@ display_next_steps() {
     print_header "Phase 3a: Manual CI Testing (Next)"
 
     print_info "Now you can build and push Docker images to ECR:"
-    print_command "./scripts/jenkins/20-ci-build-and-push.sh --demo"
+    print_command "./scripts/aws-ci-cd/20-ci-build-and-push.sh --demo"
     echo ""
 
     print_info "This script will:"

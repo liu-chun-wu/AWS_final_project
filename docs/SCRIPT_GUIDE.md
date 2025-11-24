@@ -7,7 +7,7 @@ Complete reference for all automation scripts in the AWS Flask CI/CD Demo projec
 ## Table of Contents
 
 - [Overview](#overview)
-- [Local CI-Only Scripts](#local-scripts)
+- [Local CI-Only Scripts](#local-ci-only-scripts)
 - [AWS CI/CD Scripts](#aws-cicd-scripts)
   - [10-19: Infrastructure Setup](#10-19-infrastructure-setup)
   - [20-29: CI Operations](#20-29-ci-operations)
@@ -22,8 +22,8 @@ Complete reference for all automation scripts in the AWS Flask CI/CD Demo projec
 
 ```
 scripts/
-├── local/    # CI testing without AWS deployment
-└── jenkins/        # Full CI/CD pipeline in AWS
+├── local-ci-only/    # CI testing without AWS deployment
+└── aws-ci-cd/        # Full CI/CD pipeline in AWS
 ```
 
 ### Numbering Convention
@@ -45,7 +45,7 @@ All AWS scripts require explicit backend selection:
 
 ## Local CI-Only Scripts
 
-Located in `scripts/local/`
+Located in `scripts/local-ci-only/`
 
 ### setup-jenkins.sh
 
@@ -53,7 +53,7 @@ Located in `scripts/local/`
 
 **Usage:**
 ```bash
-./scripts/local/setup-jenkins.sh
+./scripts/local-ci-only/setup-jenkins.sh
 ```
 
 **What it does:**
@@ -82,8 +82,8 @@ Located in `scripts/local/`
 
 **Usage:**
 ```bash
-./scripts/local/test-local.sh --demo
-./scripts/local/test-local.sh --prod
+./scripts/local-ci-only/test-local.sh --demo
+./scripts/local-ci-only/test-local.sh --prod
 ```
 
 **Flags:**
@@ -108,8 +108,8 @@ Located in `scripts/local/`
 
 **Usage:**
 ```bash
-./scripts/local/build-local.sh --demo
-./scripts/local/build-local.sh --prod
+./scripts/local-ci-only/build-local.sh --demo
+./scripts/local-ci-only/build-local.sh --prod
 ```
 
 **What it does:**
@@ -130,7 +130,7 @@ Located in `scripts/local/`
 
 ## AWS CI/CD Scripts
 
-Located in `scripts/jenkins/`
+Located in `scripts/aws-ci-cd/`
 
 All scripts require `--demo` or `--prod` flag.
 
@@ -144,7 +144,7 @@ All scripts require `--demo` or `--prod` flag.
 
 **Usage:**
 ```bash
-./scripts/jenkins/10-check-prerequisites.sh
+./scripts/aws-ci-cd/10-check-prerequisites.sh
 ```
 
 **What it checks:**
@@ -172,7 +172,7 @@ All scripts require `--demo` or `--prod` flag.
 
 **Usage:**
 ```bash
-./scripts/jenkins/11-setup-ecr.sh
+./scripts/aws-ci-cd/11-setup-ecr.sh
 ```
 
 **What it does:**
@@ -196,8 +196,8 @@ All scripts require `--demo` or `--prod` flag.
 
 **Usage:**
 ```bash
-./scripts/jenkins/40-setup-jenkins-ec2.sh --demo
-./scripts/jenkins/40-setup-jenkins-ec2.sh --prod
+./scripts/aws-ci-cd/40-setup-jenkins-ec2.sh --demo
+./scripts/aws-ci-cd/40-setup-jenkins-ec2.sh --prod
 ```
 
 **What it does:**
@@ -236,8 +236,8 @@ All scripts require `--demo` or `--prod` flag.
 
 **Usage:**
 ```bash
-./scripts/jenkins/41-configure-jenkins-jobs.sh --demo
-./scripts/jenkins/41-configure-jenkins-jobs.sh --prod
+./scripts/aws-ci-cd/41-configure-jenkins-jobs.sh --demo
+./scripts/aws-ci-cd/41-configure-jenkins-jobs.sh --prod
 ```
 
 **What it does:**
@@ -267,8 +267,8 @@ All scripts require `--demo` or `--prod` flag.
 
 **Usage:**
 ```bash
-./scripts/jenkins/20-ci-build-and-push.sh --demo
-./scripts/jenkins/20-ci-build-and-push.sh --prod
+./scripts/aws-ci-cd/20-ci-build-and-push.sh --demo
+./scripts/aws-ci-cd/20-ci-build-and-push.sh --prod
 ```
 
 **What it does:**
@@ -302,8 +302,8 @@ All scripts require `--demo` or `--prod` flag.
 
 **Usage:**
 ```bash
-./scripts/jenkins/21-ci-validate-image.sh --demo --image-tag latest
-./scripts/jenkins/21-ci-validate-image.sh --demo --image-tag jeffery-42
+./scripts/aws-ci-cd/21-ci-validate-image.sh --demo --image-tag latest
+./scripts/aws-ci-cd/21-ci-validate-image.sh --demo --image-tag jeffery-42
 ```
 
 **Flags:**
@@ -329,8 +329,8 @@ All scripts require `--demo` or `--prod` flag.
 
 **Usage:**
 ```bash
-./scripts/jenkins/30-cd-validate-sam.sh --demo
-./scripts/jenkins/30-cd-validate-sam.sh --prod
+./scripts/aws-ci-cd/30-cd-validate-sam.sh --demo
+./scripts/aws-ci-cd/30-cd-validate-sam.sh --prod
 ```
 
 **What it checks:**
@@ -356,8 +356,8 @@ All scripts require `--demo` or `--prod` flag.
 
 **Usage:**
 ```bash
-./scripts/jenkins/31-cd-deploy-sam.sh --demo
-./scripts/jenkins/31-cd-deploy-sam.sh --prod
+./scripts/aws-ci-cd/31-cd-deploy-sam.sh --demo
+./scripts/aws-ci-cd/31-cd-deploy-sam.sh --prod
 ```
 
 **What it does:**
@@ -394,8 +394,8 @@ All scripts require `--demo` or `--prod` flag.
 
 **Usage:**
 ```bash
-./scripts/jenkins/32-cd-verify-deployment.sh --demo
-./scripts/jenkins/32-cd-verify-deployment.sh --prod
+./scripts/aws-ci-cd/32-cd-verify-deployment.sh --demo
+./scripts/aws-ci-cd/32-cd-verify-deployment.sh --prod
 ```
 
 **What it does:**
@@ -424,8 +424,8 @@ All scripts require `--demo` or `--prod` flag.
 
 **Usage:**
 ```bash
-./scripts/jenkins/33-cd-redeploy-image.sh --demo --image-tag jeffery-42
-./scripts/jenkins/33-cd-redeploy-image.sh --prod --image-tag main-5
+./scripts/aws-ci-cd/33-cd-redeploy-image.sh --demo --image-tag jeffery-42
+./scripts/aws-ci-cd/33-cd-redeploy-image.sh --prod --image-tag main-5
 ```
 
 **Required Flags:**
@@ -452,8 +452,8 @@ All scripts require `--demo` or `--prod` flag.
 
 **Usage:**
 ```bash
-./scripts/jenkins/34-cd-rollback.sh --demo
-./scripts/jenkins/34-cd-rollback.sh --prod
+./scripts/aws-ci-cd/34-cd-rollback.sh --demo
+./scripts/aws-ci-cd/34-cd-rollback.sh --prod
 ```
 
 **What it does:**
@@ -489,8 +489,8 @@ Select image to deploy (1-3): 2
 
 **Usage:**
 ```bash
-./scripts/jenkins/90-check-aws-status.sh --demo
-./scripts/jenkins/90-check-aws-status.sh --prod
+./scripts/aws-ci-cd/90-check-aws-status.sh --demo
+./scripts/aws-ci-cd/90-check-aws-status.sh --prod
 ```
 
 **What it shows:**
@@ -533,8 +533,8 @@ Select image to deploy (1-3): 2
 
 **Usage:**
 ```bash
-./scripts/jenkins/91-check-jenkins-status.sh --demo
-./scripts/jenkins/91-check-jenkins-status.sh --prod
+./scripts/aws-ci-cd/91-check-jenkins-status.sh --demo
+./scripts/aws-ci-cd/91-check-jenkins-status.sh --prod
 ```
 
 **What it shows:**
@@ -563,8 +563,8 @@ Select image to deploy (1-3): 2
 
 **Usage:**
 ```bash
-./scripts/jenkins/92-view-cd-logs.sh --demo
-./scripts/jenkins/92-view-cd-logs.sh --prod
+./scripts/aws-ci-cd/92-view-cd-logs.sh --demo
+./scripts/aws-ci-cd/92-view-cd-logs.sh --prod
 ```
 
 **What it shows:**
@@ -594,8 +594,8 @@ Select image to deploy (1-3): 2
 
 **Usage:**
 ```bash
-./scripts/jenkins/93-start-jenkins-ec2.sh --demo
-./scripts/jenkins/93-start-jenkins-ec2.sh --prod
+./scripts/aws-ci-cd/93-start-jenkins-ec2.sh --demo
+./scripts/aws-ci-cd/93-start-jenkins-ec2.sh --prod
 ```
 
 **What it does:**
@@ -619,8 +619,8 @@ Select image to deploy (1-3): 2
 
 **Usage:**
 ```bash
-./scripts/jenkins/94-stop-jenkins-ec2.sh --demo
-./scripts/jenkins/94-stop-jenkins-ec2.sh --prod
+./scripts/aws-ci-cd/94-stop-jenkins-ec2.sh --demo
+./scripts/aws-ci-cd/94-stop-jenkins-ec2.sh --prod
 ```
 
 **What it does:**
@@ -646,8 +646,8 @@ Select image to deploy (1-3): 2
 
 **Usage:**
 ```bash
-./scripts/jenkins/99-cleanup-all.sh --demo
-./scripts/jenkins/99-cleanup-all.sh --prod
+./scripts/aws-ci-cd/99-cleanup-all.sh --demo
+./scripts/aws-ci-cd/99-cleanup-all.sh --prod
 ```
 
 **What it deletes:**
@@ -683,20 +683,20 @@ Select image to deploy (1-3): 2
 
 ```bash
 # Phase 1-2: Infrastructure
-./scripts/jenkins/10-check-prerequisites.sh
-./scripts/jenkins/11-setup-ecr.sh
+./scripts/aws-ci-cd/10-check-prerequisites.sh
+./scripts/aws-ci-cd/11-setup-ecr.sh
 
 # Phase 3: Manual SAM Validation (CRITICAL GATE)
-./scripts/jenkins/20-ci-build-and-push.sh --demo
-./scripts/jenkins/30-cd-validate-sam.sh --demo
-./scripts/jenkins/31-cd-deploy-sam.sh --demo
-./scripts/jenkins/32-cd-verify-deployment.sh --demo
+./scripts/aws-ci-cd/20-ci-build-and-push.sh --demo
+./scripts/aws-ci-cd/30-cd-validate-sam.sh --demo
+./scripts/aws-ci-cd/31-cd-deploy-sam.sh --demo
+./scripts/aws-ci-cd/32-cd-verify-deployment.sh --demo
 
 # If all above succeed, proceed:
 
 # Phase 4-5: Jenkins EC2 Automation
-./scripts/jenkins/40-setup-jenkins-ec2.sh --demo
-./scripts/jenkins/41-configure-jenkins-jobs.sh --demo
+./scripts/aws-ci-cd/40-setup-jenkins-ec2.sh --demo
+./scripts/aws-ci-cd/41-configure-jenkins-jobs.sh --demo
 
 # Now: git push triggers full CI/CD automatically!
 ```
@@ -713,35 +713,35 @@ git push origin Jeffery
 # 3. Verifies deployment
 
 # Check status
-./scripts/jenkins/90-check-aws-status.sh --demo
+./scripts/aws-ci-cd/90-check-aws-status.sh --demo
 ```
 
 ### Troubleshooting Failed CD
 
 ```bash
 # View logs to find error
-./scripts/jenkins/92-view-cd-logs.sh --demo
+./scripts/aws-ci-cd/92-view-cd-logs.sh --demo
 
 # If issue is in SAM template:
 # 1. Fix template.yaml locally
 # 2. Redeploy without rebuilding
-./scripts/jenkins/33-cd-redeploy-image.sh --demo --image-tag jeffery-42
+./scripts/aws-ci-cd/33-cd-redeploy-image.sh --demo --image-tag jeffery-42
 
 # If new deployment has bugs:
-./scripts/jenkins/34-cd-rollback.sh --demo
+./scripts/aws-ci-cd/34-cd-rollback.sh --demo
 ```
 
 ### Cost Management
 
 ```bash
 # End of day: Stop Jenkins to save costs
-./scripts/jenkins/94-stop-jenkins-ec2.sh --demo
+./scripts/aws-ci-cd/94-stop-jenkins-ec2.sh --demo
 
 # Next morning: Start Jenkins
-./scripts/jenkins/93-start-jenkins-ec2.sh --demo
+./scripts/aws-ci-cd/93-start-jenkins-ec2.sh --demo
 
 # End of week: Clean up everything
-./scripts/jenkins/99-cleanup-all.sh --demo
+./scripts/aws-ci-cd/99-cleanup-all.sh --demo
 ```
 
 ---
@@ -760,7 +760,7 @@ git push origin Jeffery
 
 **Cause:** ECR repository hasn't been created
 
-**Solution:** Run `./scripts/jenkins/11-setup-ecr.sh`
+**Solution:** Run `./scripts/aws-ci-cd/11-setup-ecr.sh`
 
 ---
 
@@ -768,7 +768,7 @@ git push origin Jeffery
 
 **Cause:** Haven't pushed any Docker images yet
 
-**Solution:** Run `./scripts/jenkins/20-ci-build-and-push.sh --demo`
+**Solution:** Run `./scripts/aws-ci-cd/20-ci-build-and-push.sh --demo`
 
 ---
 
@@ -785,8 +785,8 @@ git push origin Jeffery
 **Cause:** EC2 instance stopped or security group issue
 
 **Solution:**
-1. Check instance: `./scripts/jenkins/91-check-jenkins-status.sh --demo`
-2. If stopped: `./scripts/jenkins/93-start-jenkins-ec2.sh --demo`
+1. Check instance: `./scripts/aws-ci-cd/91-check-jenkins-status.sh --demo`
+2. If stopped: `./scripts/aws-ci-cd/93-start-jenkins-ec2.sh --demo`
 3. Check security group allows port 8080
 
 ---

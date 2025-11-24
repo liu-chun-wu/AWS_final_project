@@ -90,7 +90,7 @@ pipeline {
                                 echo "You must build and push an image first:"
                                 echo "  Option 1: Run CI pipeline (builds locally, doesn't push)"
                                 echo "  Option 2: Run manual build script:"
-                                echo "    ./scripts/jenkins/20-ci-build-and-push.sh --demo"
+                                echo "    ./scripts/aws-ci-cd/20-ci-build-and-push.sh --demo"
                                 echo ""
                                 exit 1
                             fi
@@ -326,7 +326,7 @@ pipeline {
                 echo "  aws logs tail /aws/lambda/${env.STACK_NAME}-FlaskDemoFunction-* --follow"
                 echo ''
                 echo 'Verification script (optional):'
-                echo "  ./scripts/jenkins/32-cd-verify-deployment.sh --${params.BACKEND_DIR == 'backend' ? 'prod' : 'demo'}"
+                echo "  ./scripts/aws-ci-cd/32-cd-verify-deployment.sh --${params.BACKEND_DIR == 'backend' ? 'prod' : 'demo'}"
                 echo '============================================'
             }
         }
@@ -348,7 +348,7 @@ pipeline {
                 echo ''
                 echo '  2. No ECR image found:'
                 echo '     - Build and push image first:'
-                echo '       ./scripts/jenkins/20-ci-build-and-push.sh --demo'
+                echo '       ./scripts/aws-ci-cd/20-ci-build-and-push.sh --demo'
                 echo '     - Or run CI pipeline to build (manual push to ECR after)'
                 echo '     - Verify image exists:'
                 echo '       aws ecr describe-images --repository-name ${IMAGE_NAME}'

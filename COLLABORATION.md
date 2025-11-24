@@ -153,7 +153,7 @@ git push origin Jeffery
 # 3. Team lead will:
 #    - Review your code
 #    - Merge to main
-#    - Manually trigger the `flask-cd` job with the approved IMAGE_TAG to deploy
+#    - Jenkins deploys to AWS automatically
 ```
 
 ## Testing
@@ -272,14 +272,14 @@ curl http://localhost:8000/health
 
 ### AWS Deployment (Team Lead Only)
 
-After merging to main, deployment is automatic. To verify or redeploy manually:
+After merging to main, deployment is automatic. To check status:
 
 ```bash
-# Redeploy a known image tag (optional)
-./scripts/jenkins/31-cd-deploy-sam.sh --prod --image-tag main-42
+# View AWS resources
+./scripts/aws/check-aws-status.sh
 
-# Smoke-test the deployed API
-./scripts/jenkins/32-cd-verify-deployment.sh --prod
+# Test deployed API
+./scripts/aws/05-verify-deployment.sh
 ```
 
 ### Accessing Deployed Service
@@ -425,7 +425,7 @@ git commit
 ```bash
 # Make scripts executable
 chmod +x scripts/local/*.sh
-chmod +x scripts/jenkins/*.sh
+chmod +x scripts/aws/*.sh
 
 # Then run
 ./scripts/local/test-local.sh
@@ -519,7 +519,7 @@ pip freeze > requirements.txt
 
 - **[README.md](README.md)** - Project overview and setup
 - **[BRANCH_STRATEGY.md](BRANCH_STRATEGY.md)** - Detailed CI/CD workflow
-- **[docs/archived/DEVELOPMENT_DIARY.md](docs/archived/DEVELOPMENT_DIARY.md)** - Implementation history
+- **[DEVELOPMENT_DIARY.md](DEVELOPMENT_DIARY.md)** - Implementation history
 - **[backend/README.md](backend/README.md)** - Backend-specific guide
 - **[scripts/README.md](scripts/README.md)** - Script documentation
 

@@ -2413,12 +2413,12 @@ The comprehensive documentation created throughout this process will serve as a 
 
 #### 1. Complete AWS Automation Suite (11 Scripts)
 
-**Local Development Scripts (`scripts/local/`):**
+**Local Development Scripts (`scripts/local-ci-only/`):**
 - `setup-jenkins.sh` - Automated Jenkins container setup with all prerequisites
 - `test-local.sh` - Local pytest runner with --demo flag support
 - `build-local.sh` - Local Docker builds with --demo flag support
 
-**AWS Deployment Scripts (`scripts/jenkins/`):**
+**AWS Deployment Scripts (`scripts/aws-ci-cd/`):**
 - `01-check-prerequisites.sh` - Comprehensive AWS environment validation
 - `02-setup-ecr.sh` - ECR repository creation (idempotent)
 - `03-build-and-push.sh` - Build Docker image and push to ECR
@@ -2508,10 +2508,10 @@ sam deploy --config-file ${SAM_CONFIG} --no-confirm-changeset
 #### 6. Script Flag Support
 
 **All Scripts Support --demo Flag:**
-- `./scripts/local/test-local.sh --demo` → Tests demo-backend
-- `./scripts/local/test-local.sh` → Tests backend (production)
-- `./scripts/local/build-local.sh --demo` → Builds demo-backend
-- `./scripts/local/build-local.sh` → Builds backend (production)
+- `./scripts/local-ci-only/test-local.sh --demo` → Tests demo-backend
+- `./scripts/local-ci-only/test-local.sh` → Tests backend (production)
+- `./scripts/local-ci-only/build-local.sh --demo` → Builds demo-backend
+- `./scripts/local-ci-only/build-local.sh` → Builds backend (production)
 
 **Implementation:**
 - Argument parsing with help text (`--help`)
@@ -2603,15 +2603,15 @@ SAM_CONFIG = env.BACKEND == 'backend' ? 'samconfig-prod.toml' : 'samconfig-demo.
 
 #### Success Criteria Met:
 
-- ✅ All 18 tests pass: `./scripts/local/test-local.sh --demo`
-- ✅ Local Docker build works: `./scripts/local/build-local.sh --demo`
-- ✅ AWS prerequisites check passes: `./scripts/jenkins/01-check-prerequisites.sh`
-- ✅ ECR setup succeeds: `./scripts/jenkins/02-setup-ecr.sh`
-- ✅ Build and push works: `./scripts/jenkins/03-build-and-push.sh`
-- ✅ SAM deployment succeeds: `./scripts/jenkins/04-deploy-sam.sh`
-- ✅ Verification passes: `./scripts/jenkins/05-verify-deployment.sh`
-- ✅ Status check shows resources: `./scripts/jenkins/check-aws-status.sh`
-- ✅ Cleanup removes everything: `./scripts/jenkins/99-cleanup-all.sh`
+- ✅ All 18 tests pass: `./scripts/local-ci-only/test-local.sh --demo`
+- ✅ Local Docker build works: `./scripts/local-ci-only/build-local.sh --demo`
+- ✅ AWS prerequisites check passes: `./scripts/aws-ci-cd/01-check-prerequisites.sh`
+- ✅ ECR setup succeeds: `./scripts/aws-ci-cd/02-setup-ecr.sh`
+- ✅ Build and push works: `./scripts/aws-ci-cd/03-build-and-push.sh`
+- ✅ SAM deployment succeeds: `./scripts/aws-ci-cd/04-deploy-sam.sh`
+- ✅ Verification passes: `./scripts/aws-ci-cd/05-verify-deployment.sh`
+- ✅ Status check shows resources: `./scripts/aws-ci-cd/check-aws-status.sh`
+- ✅ Cleanup removes everything: `./scripts/aws-ci-cd/99-cleanup-all.sh`
 
 #### Manual Testing:
 
@@ -2782,7 +2782,7 @@ Then use `--config-file ${SAM_CONFIG}` in all SAM commands.
 ### What's Working Well
 
 **Developer Experience:**
-- Single command scripts (`./scripts/jenkins/04-deploy-sam.sh`)
+- Single command scripts (`./scripts/aws-ci-cd/04-deploy-sam.sh`)
 - Clear feedback with colors and progress indicators
 - Help text available (`--help` flag)
 - Idempotent operations (fear-free execution)
@@ -2917,7 +2917,7 @@ This phase completes the original vision while adding industry best practices:
 1. **Jenkins on EC2** - Full CI/CD orchestrator in AWS (original Phase 4)
 2. **CI/CD Separation** - Two Jenkins jobs instead of one pipeline
 3. **Script Reorganization** - Grouped numbering (10s, 20s, 30s, 90s)
-4. **Folder Clarity** - Explicit naming (local, jenkins)
+4. **Folder Clarity** - Explicit naming (local-ci-only, aws-ci-cd)
 5. **Manual Validation Gate** - Prove SAM works before automating
 
 ### 7.1 Architectural Gap Discovery
@@ -2970,9 +2970,9 @@ scripts/
 **After (Explicit):**
 ```
 scripts/
-├── local/    CI testing without AWS deployment
+├── local-ci-only/    CI testing without AWS deployment
 │                     (Used by local Jenkins on Jeffery branch)
-└── jenkins/        Full CI/CD pipeline in AWS
+└── aws-ci-cd/        Full CI/CD pipeline in AWS
                       (Used by EC2 Jenkins or manual operations)
 ```
 
@@ -3154,8 +3154,8 @@ With manual validation first:
 
 | Old Path | New Path | Reason |
 |----------|----------|--------|
-| `scripts/local/` | `scripts/local/` | Explicit purpose |
-| `scripts/aws/` | `scripts/jenkins/` | Explicit purpose |
+| `scripts/local/` | `scripts/local-ci-only/` | Explicit purpose |
+| `scripts/aws/` | `scripts/aws-ci-cd/` | Explicit purpose |
 | `01-check-prerequisites.sh` | `10-check-prerequisites.sh` | Group 10s = setup |
 | `02-setup-ecr.sh` | `11-setup-ecr.sh` | Group 10s = setup |
 | `03-build-and-push.sh` | `20-ci-build-and-push.sh` | Group 20s = CI |
@@ -3339,7 +3339,7 @@ Plus: Educational value of understanding what Jenkins automates
 
 ### 7.5 CI/CD Workflow Diagrams
 
-#### Local CI-Only Workflow (scripts/local)
+#### Local CI-Only Workflow (scripts/local-ci-only)
 
 ```
 Developer → Edit code
@@ -3367,7 +3367,7 @@ Developer → Edit code
 
 **Purpose:** Fast feedback loop for development
 
-#### AWS CI/CD Workflow (scripts/jenkins)
+#### AWS CI/CD Workflow (scripts/aws-ci-cd)
 
 ```
 Developer → Edit code
@@ -3421,27 +3421,27 @@ Developer → Edit code
 Jenkins is down or need to debug:
 
 Step 1: CI Manually
-    ./scripts/jenkins/20-ci-build-and-push.sh --demo
+    ./scripts/aws-ci-cd/20-ci-build-and-push.sh --demo
          ↓
     Image in ECR: aws-lab-flask-demo:latest
 
 Step 2: Validate (optional)
-    ./scripts/jenkins/21-ci-validate-image.sh --demo
+    ./scripts/aws-ci-cd/21-ci-validate-image.sh --demo
          ↓
     Confirms image exists
 
 Step 3: CD Manually
-    ./scripts/jenkins/31-cd-deploy-sam.sh --demo
+    ./scripts/aws-ci-cd/31-cd-deploy-sam.sh --demo
          ↓
     SAM deploys to Lambda
 
 Step 4: Verify
-    ./scripts/jenkins/32-cd-verify-deployment.sh --demo
+    ./scripts/aws-ci-cd/32-cd-verify-deployment.sh --demo
          ↓
     Tests endpoints
 
 OR Rollback:
-    ./scripts/jenkins/34-cd-rollback.sh --demo
+    ./scripts/aws-ci-cd/34-cd-rollback.sh --demo
          ↓
     Lists recent images, prompts to select, deploys old version
 ```
@@ -3463,7 +3463,7 @@ OR Rollback:
 - Create docs/SCRIPT_GUIDE.md
 
 **Day 2: Script Reorganization**
-- Rename folders: local → local, aws → jenkins
+- Rename folders: local → local-ci-only, aws → aws-ci-cd
 - Rename existing scripts to grouped numbering
 - Update cross-references in all scripts
 - Test renamed scripts still work
@@ -3527,8 +3527,8 @@ ci/Jenkinsfile-CD                                       (NEW - CD job)
 
 **Scripts Renamed (7 files):**
 ```
-scripts/local/                 → scripts/local/
-scripts/aws/                   → scripts/jenkins/
+scripts/local/                 → scripts/local-ci-only/
+scripts/aws/                   → scripts/aws-ci-cd/
 
 01-check-prerequisites.sh      → 10-check-prerequisites.sh
 02-setup-ecr.sh                → 11-setup-ecr.sh
@@ -3541,16 +3541,16 @@ check-aws-status.sh            → 90-check-aws-status.sh
 
 **Scripts Created (10 files):**
 ```
-scripts/jenkins/12-setup-jenkins-ec2.sh       (EC2 provisioning)
-scripts/jenkins/13-configure-jenkins-jobs.sh  (Jenkins job setup)
-scripts/jenkins/21-ci-validate-image.sh       (verify ECR image)
-scripts/jenkins/30-cd-validate-sam.sh         (SAM validation gate)
-scripts/jenkins/33-cd-redeploy-image.sh       (redeploy existing image)
-scripts/jenkins/34-cd-rollback.sh             (rollback deployment)
-scripts/jenkins/91-check-jenkins-status.sh    (EC2 Jenkins monitoring)
-scripts/jenkins/92-view-cd-logs.sh            (CD debugging logs)
-scripts/jenkins/93-start-jenkins-ec2.sh       (start EC2 instance)
-scripts/jenkins/94-stop-jenkins-ec2.sh        (stop EC2 to save costs)
+scripts/aws-ci-cd/12-setup-jenkins-ec2.sh       (EC2 provisioning)
+scripts/aws-ci-cd/13-configure-jenkins-jobs.sh  (Jenkins job setup)
+scripts/aws-ci-cd/21-ci-validate-image.sh       (verify ECR image)
+scripts/aws-ci-cd/30-cd-validate-sam.sh         (SAM validation gate)
+scripts/aws-ci-cd/33-cd-redeploy-image.sh       (redeploy existing image)
+scripts/aws-ci-cd/34-cd-rollback.sh             (rollback deployment)
+scripts/aws-ci-cd/91-check-jenkins-status.sh    (EC2 Jenkins monitoring)
+scripts/aws-ci-cd/92-view-cd-logs.sh            (CD debugging logs)
+scripts/aws-ci-cd/93-start-jenkins-ec2.sh       (start EC2 instance)
+scripts/aws-ci-cd/94-stop-jenkins-ec2.sh        (stop EC2 to save costs)
 ```
 
 **Total:**
@@ -3594,8 +3594,8 @@ scripts/jenkins/94-stop-jenkins-ec2.sh        (stop EC2 to save costs)
 - Lesson: Re-read specs periodically during implementation
 
 **2. Naming Clarity Prevents Confusion**
-- "local" vs "local" - latter is explicit
-- "aws" vs "jenkins" - latter shows purpose
+- "local" vs "local-ci-only" - latter is explicit
+- "aws" vs "aws-ci-cd" - latter shows purpose
 - Lesson: Be explicit in naming, avoid ambiguity
 
 **3. Documentation Before Implementation**
@@ -3775,11 +3775,11 @@ Lesson: Fallback scripts add reliability
 
 **Build Times:**
 ```
-Local CI (scripts/local):
+Local CI (scripts/local-ci-only):
   Test + Build: 1 min 45 sec
   (No deployment)
 
-AWS CI/CD (scripts/jenkins):
+AWS CI/CD (scripts/aws-ci-cd):
   Manual CI:  3 min 30 sec (20-ci-build-and-push.sh)
   Manual CD:  2 min 45 sec (31-cd-deploy-sam.sh)
   Total:      6 min 15 sec

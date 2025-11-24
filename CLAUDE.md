@@ -72,32 +72,38 @@ docker exec <jenkins-container> cat /var/jenkins_home/secrets/initialAdminPasswo
 
 ```bash
 # Local CI-only scripts (testing without AWS)
-./scripts/jenkins/40-setup-jenkins-local.sh  # Set up Jenkins container
-./scripts/jenkins/42-configure-jenkins-jobs.sh --local --demo  # Auto-create local jobs
-./scripts/local/test-local.sh     # Run tests locally
-./scripts/local/build-local.sh    # Build Docker locally
+./scripts/local-ci-only/setup-jenkins.sh  # Set up Jenkins container
+./scripts/local-ci-only/test-local.sh     # Run tests locally
+./scripts/local-ci-only/build-local.sh    # Build Docker locally
 
 # AWS CI/CD scripts (organized by purpose)
 
-# Infrastructure Setup (one-time)
-./scripts/jenkins/11-setup-ecr.sh              # Create ECR repository
+# 10-19: Infrastructure Setup (one-time)
+./scripts/aws-ci-cd/10-check-prerequisites.sh    # Verify AWS environment
+./scripts/aws-ci-cd/11-setup-ecr.sh              # Create ECR repository
 
-# CI Operations (build/test/push)
-./scripts/jenkins/20-ci-build-and-push.sh      # Build & push to ECR
+# 20-29: CI Operations (build/test/push)
+./scripts/aws-ci-cd/20-ci-build-and-push.sh      # Build & push to ECR
+./scripts/aws-ci-cd/21-ci-validate-image.sh      # Verify image exists
 
-# CD Operations (deploy/verify)
-./scripts/jenkins/30-cd-validate-sam.sh        # Validate SAM template
-./scripts/jenkins/31-cd-deploy-sam.sh          # Deploy to Lambda
-./scripts/jenkins/32-cd-verify-deployment.sh   # Test endpoints
+# 30-39: CD Operations (deploy/verify/rollback)
+./scripts/aws-ci-cd/30-cd-validate-sam.sh        # Validate SAM template
+./scripts/aws-ci-cd/31-cd-deploy-sam.sh          # Deploy to Lambda
+./scripts/aws-ci-cd/32-cd-verify-deployment.sh   # Test endpoints
+./scripts/aws-ci-cd/33-cd-redeploy-image.sh      # Redeploy existing image
+./scripts/aws-ci-cd/34-cd-rollback.sh            # Rollback to previous
 
-# Jenkins Setup (after manual validation)
-./scripts/jenkins/41-setup-jenkins-ec2.sh --demo      # Launch Jenkins on EC2
-./scripts/jenkins/42-configure-jenkins-jobs.sh --ec2 --demo # Create CI/CD jobs
+# 40-49: Jenkins Setup (after manual validation)
+./scripts/aws-ci-cd/40-setup-jenkins-ec2.sh      # Launch Jenkins on EC2
+./scripts/aws-ci-cd/41-configure-jenkins-jobs.sh # Create CI/CD jobs
 
-# Utilities
-./scripts/jenkins/91-check-jenkins-status.sh   # Check Jenkins EC2
-./scripts/jenkins/93-start-jenkins-ec2.sh      # Start EC2 instance
-./scripts/jenkins/94-stop-jenkins-ec2.sh       # Stop EC2 to save costs
+# 90-99: Utilities and Cleanup
+./scripts/aws-ci-cd/90-check-aws-status.sh       # Check AWS resources
+./scripts/aws-ci-cd/91-check-jenkins-status.sh   # Check Jenkins EC2
+./scripts/aws-ci-cd/92-view-cd-logs.sh           # View deployment logs
+./scripts/aws-ci-cd/93-start-jenkins-ec2.sh      # Start EC2 instance
+./scripts/aws-ci-cd/94-stop-jenkins-ec2.sh       # Stop EC2 to save costs
+./scripts/aws-ci-cd/99-cleanup-all.sh            # Delete all resources
 
 # Manual AWS commands (if not using scripts)
 aws ecr get-login-password --region us-east-1 | \

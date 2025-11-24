@@ -4,9 +4,9 @@
 # Jenkins EC2 Setup Script - Deploy CI/CD Server on AWS
 ################################################################################
 #
-# Script: 41-setup-jenkins-ec2.sh
+# Script: 40-setup-jenkins-ec2.sh
 # Purpose: Launch and configure Jenkins on AWS EC2 for CI/CD automation
-# Usage: ./41-setup-jenkins-ec2.sh [--demo|--prod]
+# Usage: ./40-setup-jenkins-ec2.sh [--demo|--prod]
 #
 # What is AWS EC2 (Elastic Compute Cloud)?
 # - Virtual servers in the cloud (like your own computer in AWS)
@@ -837,7 +837,7 @@ display_summary() {
     echo ""
 
     print_info "5. Configure Jenkins jobs:"
-    print_command "./scripts/jenkins/42-configure-jenkins-jobs.sh --$ENVIRONMENT"
+    print_command "./scripts/aws-ci-cd/41-configure-jenkins-jobs.sh --$ENVIRONMENT"
     echo ""
 
     print_header "Cost Management"
@@ -849,11 +849,11 @@ display_summary() {
     echo ""
 
     print_info "To stop instance (save \$17/month):"
-    print_command "./scripts/jenkins/94-stop-jenkins-ec2.sh --$ENVIRONMENT"
+    print_command "./scripts/aws-ci-cd/94-stop-jenkins-ec2.sh --$ENVIRONMENT"
     echo ""
 
     print_info "To start instance:"
-    print_command "./scripts/jenkins/93-start-jenkins-ec2.sh --$ENVIRONMENT"
+    print_command "./scripts/aws-ci-cd/93-start-jenkins-ec2.sh --$ENVIRONMENT"
     echo ""
 
     print_header "Troubleshooting"

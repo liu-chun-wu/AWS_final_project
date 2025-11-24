@@ -10,7 +10,7 @@
 # - Builds your Flask app into a Docker image
 # - Tags it for local use
 # - Same as what Jenkins does in Stage 6
-# - Does NOT push to AWS (use scripts/jenkins/20-ci-build-and-push.sh for that)
+# - Does NOT push to AWS (use scripts/aws/03-build-and-push.sh for that)
 #
 # Use this when you want to:
 # - Test Docker image locally before pushing
@@ -283,7 +283,7 @@ display_next_steps() {
     echo ""
 
     print_info "To push to AWS ECR:"
-    echo -e "  ${BLUE}./scripts/jenkins/20-ci-build-and-push.sh${NC}"
+    echo -e "  ${BLUE}./scripts/aws/03-build-and-push.sh${NC}"
     echo ""
 
     print_info "To remove the image:"
