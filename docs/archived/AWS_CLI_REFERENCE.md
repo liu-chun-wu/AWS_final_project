@@ -1740,7 +1740,7 @@ sam build && sam deploy --config-file samconfig.toml
 - **JMESPath Tutorial**: https://jmespath.org/tutorial.html
 - **SAM CLI Reference**: https://docs.aws.amazon.com/serverless-application-model/latest/developerguide/serverless-sam-cli-command-reference.html
 - **CloudFormation User Guide**: https://docs.aws.amazon.com/cloudformation/
-- **Project Scripts**: See `scripts/aws-ci-cd/` for working examples
+- **Project Scripts**: See `scripts/jenkins/` for working examples
 
 ---
 

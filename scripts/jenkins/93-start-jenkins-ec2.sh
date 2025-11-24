@@ -160,7 +160,7 @@ if [ ! -f "$INSTANCE_INFO_FILE" ]; then
     print_warning "This means Jenkins EC2 instance hasn't been created yet"
     echo ""
     echo "To create new instance:"
-    echo "  ./scripts/aws-ci-cd/40-setup-jenkins-ec2.sh --$ENVIRONMENT"
+    echo "  ./scripts/jenkins/41-setup-jenkins-ec2.sh --$ENVIRONMENT"
     echo ""
     exit 1
 fi
@@ -210,7 +210,7 @@ if [ "$INSTANCE_STATE" == "not-found" ]; then
     print_explain "• AWS credentials lack EC2 permissions"
     echo ""
     echo "To create a new instance:"
-    echo "  ./scripts/aws-ci-cd/40-setup-jenkins-ec2.sh --$ENVIRONMENT"
+    echo "  ./scripts/jenkins/41-setup-jenkins-ec2.sh --$ENVIRONMENT"
     echo ""
     exit 1
 fi
@@ -465,11 +465,11 @@ case "$INSTANCE_STATE" in
         echo ""
 
         echo "Check current status:"
-        echo "  ./scripts/aws-ci-cd/91-check-jenkins-status.sh --$ENVIRONMENT"
+        echo "  ./scripts/jenkins/91-check-jenkins-status.sh --$ENVIRONMENT"
         echo ""
 
         echo "Re-run this script in 1 minute:"
-        echo "  ./scripts/aws-ci-cd/93-start-jenkins-ec2.sh --$ENVIRONMENT"
+        echo "  ./scripts/jenkins/93-start-jenkins-ec2.sh --$ENVIRONMENT"
         echo ""
         exit 0
         ;;
@@ -493,7 +493,7 @@ case "$INSTANCE_STATE" in
         print_warning "You must create a new instance from scratch"
         echo ""
         echo "To create a new instance:"
-        echo "  ./scripts/aws-ci-cd/40-setup-jenkins-ec2.sh --$ENVIRONMENT"
+        echo "  ./scripts/jenkins/41-setup-jenkins-ec2.sh --$ENVIRONMENT"
         echo ""
         exit 1
         ;;
@@ -541,15 +541,15 @@ echo "    'sudo journalctl -u jenkins -f'"
 echo ""
 
 echo "Check comprehensive status:"
-echo "  ./scripts/aws-ci-cd/91-check-jenkins-status.sh --$ENVIRONMENT"
+echo "  ./scripts/jenkins/91-check-jenkins-status.sh --$ENVIRONMENT"
 echo ""
 
 echo "Configure CI/CD jobs (if not done yet):"
-echo "  ./scripts/aws-ci-cd/41-configure-jenkins-jobs.sh --$ENVIRONMENT"
+echo "  ./scripts/jenkins/42-configure-jenkins-jobs.sh --$ENVIRONMENT"
 echo ""
 
 echo "Stop instance when done (to save costs):"
-echo "  ./scripts/aws-ci-cd/94-stop-jenkins-ec2.sh --$ENVIRONMENT"
+echo "  ./scripts/jenkins/94-stop-jenkins-ec2.sh --$ENVIRONMENT"
 echo ""
 
 print_header "Cost Information"

@@ -6,17 +6,19 @@ This project uses a **branch-based CI/CD strategy** where different branches tri
 
 | Branch | Purpose | Pipeline Stages | Deployment | Use Case |
 |--------|---------|-----------------|------------|----------|
-| **Jeffery** | Development | CI Only (6 stages) | None | Daily development, testing changes |
-| **main** | Production | Full CI/CD (9 stages) | AWS Lambda | Production releases |
+| **Jeffery** | Development | Auto CI (same 6 stages) + manual CD (3 stages)  | Optional (demo-backend) | Daily development, testing changes |
+| **main** | Production | Auto CI (same 6 stages) + manual CD (3 stages) | AWS Lambda (manual `flask-cd`) | Production releases |
 
 ---
 
 ## Jeffery Branch (Development)
 
 ### Purpose
+
 Fast feedback loop for development work - tests and builds without deploying to AWS.
 
 ### Pipeline Stages
+
 1. ✅ Checkout - Clone repository
 2. ✅ Branch Check - Verify branch and set mode (CI only)
 3. ✅ Setup Python - Create virtual environment
@@ -25,22 +27,25 @@ Fast feedback loop for development work - tests and builds without deploying to 
 6. ✅ Build Docker - Create local Docker image
 
 **Stages Skipped:**
+
 - ⊘ Login to ECR (AWS only)
 - ⊘ Push to ECR (AWS only)
 - ⊘ Deploy to Lambda (AWS only)
 
 ### When Builds Trigger
+
 - **Automatic:** On every `git push origin Jeffery` (via GitHub webhook)
 - **Manual:** Click "Build Now" in Jenkins Blue Ocean
 
 ### Typical Workflow
+
 ```bash
 # 1. Make changes on Jeffery branch
 git checkout Jeffery
 # ... edit code ...
 
 # 2. Test locally (optional but recommended)
-./scripts/local-ci-only/test-local.sh
+./scripts/local/test-local.sh
 
 # 3. Commit and push (triggers Jenkins CI automatically)
 git add .
@@ -57,6 +62,7 @@ git push origin Jeffery
 ```
 
 ### Benefits
+
 - ⚡ Fast feedback (no AWS deployment overhead)
 - 💰 No AWS costs for development
 - 🔄 Unlimited builds without affecting production
@@ -67,9 +73,11 @@ git push origin Jeffery
 ## Main Branch (Production)
 
 ### Purpose
+
 Production deployment - full CI/CD pipeline that deploys to AWS Lambda.
 
 ### Pipeline Stages
+
 1. ✅ Checkout - Clone repository
 2. ✅ Branch Check - Verify branch and set mode (full CI/CD)
 3. ✅ Setup Python - Create virtual environment
@@ -81,25 +89,28 @@ Production deployment - full CI/CD pipeline that deploys to AWS Lambda.
 9. ✅ **Deploy to Lambda** - Deploy via SAM to Lambda + API Gateway
 
 ### When Builds Trigger
-- **Automatic:** On every `git push origin main` (via GitHub webhook if configured)
-- **Manual:** Merge Jeffery to main, or click "Build Now" on main branch
+
+- **Manual:** Run the `flask-cd` job (local or EC2 Jenkins) when you're ready to promote the approved image tag.
 
 ### Typical Workflow
+
 ```bash
 # Option A: Merge Jeffery to main
 git checkout main
 git merge Jeffery
 git push origin main
-# Jenkins automatically deploys to AWS
+# Capture IMAGE_TAG from the latest CI build output
+# Jenkins → flask-cd → Build with Parameters (BACKEND_DIR + IMAGE_TAG)
 
 # Option B: Direct push to main (not recommended)
 git checkout main
 # ... edit code ...
 git push origin main
-# Jenkins automatically deploys to AWS
+# Immediately run flask-cd manually to deploy
 ```
 
 ### What Gets Deployed
+
 - 🐳 Docker image pushed to AWS ECR
 - λ Lambda function created/updated
 - 🌐 API Gateway endpoints updated
@@ -107,7 +118,9 @@ git push origin main
 - 🔐 IAM roles managed by SAM
 
 ### Deployment Outputs
+
 After successful deployment, Jenkins displays:
+
 - API Gateway URL: `https://xxx.execute-api.us-east-1.amazonaws.com/Prod/`
 - Health endpoint: `.../health`
 - Echo endpoint: `.../echo`
@@ -119,6 +132,7 @@ After successful deployment, Jenkins displays:
 ## Development Workflow (Recommended)
 
 ### Day-to-Day Development
+
 ```bash
 # Always work on Jeffery branch
 git checkout Jeffery
@@ -130,10 +144,11 @@ git checkout Jeffery
 git checkout main
 git merge Jeffery
 git push origin main
-# Jenkins deploys to AWS automatically
+# Jenkins UI → flask-cd → Build with Parameters
 ```
 
 ### Fixing Production Issues
+
 ```bash
 # Option 1: Fix on Jeffery, test, then merge
 git checkout Jeffery
@@ -150,7 +165,7 @@ git checkout main
 # Fix issue
 git commit -m "hotfix: critical issue"
 git push origin main
-# Deploys immediately
+# Run flask-cd manually to deploy the fix
 
 # Then backport to Jeffery
 git checkout Jeffery
@@ -165,11 +180,13 @@ git push origin Jeffery
 ### Recommended GitHub Settings
 
 **For Jeffery Branch:**
+
 - ✅ Require status checks before merging (Jenkins CI must pass)
 - ✅ Require pull request reviews: 0 (development branch)
 - ❌ Do NOT restrict pushes (allow direct commits)
 
 **For Main Branch:**
+
 - ✅ Require status checks before merging (Jenkins CI/CD must pass)
 - ✅ Require pull request reviews: 1+ (protect production)
 - ✅ Restrict pushes to administrators only
@@ -182,27 +199,29 @@ git push origin Jeffery
 If you want to deploy manually without Jenkins:
 
 ### Deploy to AWS Manually
+
 ```bash
 # Prerequisites
-./scripts/aws-ci-cd/01-check-prerequisites.sh
+./scripts/jenkins/01-check-prerequisites.sh
 
 # Create ECR repository (one-time)
-./scripts/aws-ci-cd/02-setup-ecr.sh
+./scripts/jenkins/02-setup-ecr.sh
 
 # Build and push image
-./scripts/aws-ci-cd/03-build-and-push.sh
+./scripts/jenkins/03-build-and-push.sh
 
 # Deploy to AWS
-./scripts/aws-ci-cd/04-deploy-sam.sh
+./scripts/jenkins/04-deploy-sam.sh
 
 # Verify deployment
-./scripts/aws-ci-cd/05-verify-deployment.sh
+./scripts/jenkins/05-verify-deployment.sh
 ```
 
 ### Cleanup
+
 ```bash
 # Remove all AWS resources
-./scripts/aws-ci-cd/99-cleanup-all.sh
+./scripts/jenkins/99-cleanup-all.sh
 ```
 
 ---
@@ -210,9 +229,11 @@ If you want to deploy manually without Jenkins:
 ## Troubleshooting
 
 ### "Branch not configured for CI/CD"
+
 **Problem:** Pushed to a branch other than Jeffery or main
 
 **Solution:**
+
 ```bash
 git checkout Jeffery  # or main
 git cherry-pick <commit-hash>
@@ -220,23 +241,28 @@ git push
 ```
 
 ### "ECR authentication failed" (main branch only)
+
 **Problem:** AWS credentials not configured in Jenkins
 
 **Solution:**
+
 1. Open Jenkins: Configure System
 2. Add environment variable: `AWS_ACCOUNT_ID=123456789012`
 3. Configure AWS credentials (Access Key + Secret Key)
 4. Or use IAM role if Jenkins is on EC2
 
 ### "Tests pass locally but fail in Jenkins"
+
 **Problem:** Environment differences
 
 **Common causes:**
+
 - Different Python version
 - Missing dependencies
 - Environment variables not set
 
 **Solution:**
+
 ```bash
 # Check Python version matches
 python3 --version  # Should be 3.11+
@@ -253,13 +279,15 @@ git push
 ## Best Practices
 
 ### ✅ DO
+
 - Work on Jeffery branch for all development
-- Run `./scripts/local-ci-only/test-local.sh` before pushing
+- Run `./scripts/local/test-local.sh` before pushing
 - Wait for Jeffery CI to pass before merging to main
 - Review deployment outputs after main branch builds
 - Clean up AWS resources when done testing
 
 ### ❌ DON'T
+
 - Don't push directly to main for regular development
 - Don't merge to main with failing tests
 - Don't commit secrets or credentials
@@ -271,18 +299,20 @@ git push
 ## Cost Management
 
 ### Jeffery Branch (CI Only)
+
 - **Cost:** $0
 - **Builds:** Unlimited
 - **Resources:** Local Docker images only
 
 ### Main Branch (CI + CD)
+
 - **ECR Storage:** ~$0.10/GB/month
 - **Lambda Execution:** Free tier (1M requests/month)
 - **API Gateway:** Free tier
 - **CloudWatch Logs:** Free tier (5GB/month)
 - **Total:** ~$0.03-0.12/month for development usage
 
-**Recommendation:** Delete AWS resources between testing sessions using `./scripts/aws-ci-cd/99-cleanup-all.sh --demo`
+**Recommendation:** Delete AWS resources between testing sessions using `./scripts/jenkins/99-cleanup-all.sh --demo`
 
 ---
 
@@ -290,17 +320,19 @@ git push
 
 ### Folder Structure
 
-**scripts/local-ci-only/**
+**scripts/local/**
+
 - Used by: Local Jenkins (Jeffery branch)
 - Purpose: CI testing without AWS deployment
 - Scripts:
-  - `setup-jenkins.sh` - Setup local Jenkins container
+  - `40-setup-jenkins-local.sh` - Setup Jenkins container (Docker)
   - `test-local.sh` - Run tests locally
   - `build-local.sh` - Build Docker image locally
 
-**scripts/aws-ci-cd/**
-- Used by: EC2 Jenkins or manual operations
-- Purpose: Full CI/CD pipeline in AWS
+**scripts/jenkins/**
+
+- Used by: Local Jenkins (for CD) and EC2 Jenkins
+- Purpose: Shared CI/CD scripts (CI auto; CD triggered manually)
 - Organization:
   - **10-19:** Infrastructure setup (one-time)
   - **20-29:** CI operations (build, test, push)
@@ -310,12 +342,14 @@ git push
 ### Which Scripts for Which Branch?
 
 **Jeffery Branch:**
-- **Local Jenkins:** Uses `scripts/local-ci-only/*` for CI testing
-- **AWS Jenkins:** Uses full pipeline (CI → CD to demo-backend)
+
+- **Local Jenkins:** Uses `scripts/local/*` for CI and can deploy via `flask-cd` when needed
+- **AWS Jenkins:** Runs CI automatically; `flask-cd` can deploy to demo-backend manually
 
 **Main Branch:**
-- **AWS Jenkins:** Uses full pipeline (CI → CD to prod-backend)
-- **Manual:** Can use `scripts/aws-ci-cd/*` directly
+
+- **AWS Jenkins:** Runs CI automatically; team triggers `flask-cd` with prod parameters to deploy
+- **Manual:** Can use `scripts/jenkins/*` directly
 
 ---
 
@@ -325,6 +359,7 @@ git push
 - **Main = Complete, Deployed, Production** → Use for releases
 
 This strategy gives you the best of both worlds:
+
 1. Fast feedback during development (Jeffery)
 2. Confidence before production (tests must pass on Jeffery)
 3. Automated deployment (main)
@@ -333,8 +368,9 @@ This strategy gives you the best of both worlds:
 ---
 
 For more information:
+
 - Pipeline configuration: `ci/Jenkinsfile-CI` and `ci/Jenkinsfile-CD`
-- Deployment scripts: `scripts/aws-ci-cd/`
-- Local scripts: `scripts/local-ci-only/`
-- Script guide: `docs/SCRIPT_GUIDE.md`
-- Development diary: `DEVELOPMENT_DIARY.md` (see Phase 7)
+- Deployment scripts: `scripts/jenkins/`
+- Local scripts: `scripts/local/`
+- Script guide: `docs/scripts.md`
+- Development diary: `docs/archived/DEVELOPMENT_DIARY.md` (see Phase 7)

@@ -541,7 +541,7 @@ display_summary() {
     echo ""
 
     print_info "Update deployment:"
-    print_command "./scripts/aws-ci-cd/31-cd-deploy-sam.sh $([ "$BACKEND_TYPE" == "demo-backend" ] && echo "--demo" || echo "--prod")"
+    print_command "./scripts/jenkins/31-cd-deploy-sam.sh $([ "$BACKEND_TYPE" == "demo-backend" ] && echo "--demo" || echo "--prod")"
     echo ""
 }
 

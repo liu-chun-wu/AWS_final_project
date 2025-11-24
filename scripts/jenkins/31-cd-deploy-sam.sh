@@ -270,9 +270,9 @@ detect_image_tag() {
             echo ""
             print_info "Run Phase 3a to build and push Docker image:"
             if [ "$BACKEND_TYPE" == "demo-backend" ]; then
-                print_command "./scripts/aws-ci-cd/20-ci-build-and-push.sh --demo"
+                print_command "./scripts/jenkins/20-ci-build-and-push.sh --demo"
             else
-                print_command "./scripts/aws-ci-cd/20-ci-build-and-push.sh --prod"
+                print_command "./scripts/jenkins/20-ci-build-and-push.sh --prod"
             fi
             echo ""
             print_info "This will:"
@@ -564,9 +564,9 @@ display_summary() {
 
     print_info "Test the deployed API:"
     if [ "$BACKEND_TYPE" == "demo-backend" ]; then
-        print_command "./scripts/aws-ci-cd/32-cd-verify-deployment.sh --demo"
+        print_command "./scripts/jenkins/32-cd-verify-deployment.sh --demo"
     else
-        print_command "./scripts/aws-ci-cd/32-cd-verify-deployment.sh --prod"
+        print_command "./scripts/jenkins/32-cd-verify-deployment.sh --prod"
     fi
     echo ""
 

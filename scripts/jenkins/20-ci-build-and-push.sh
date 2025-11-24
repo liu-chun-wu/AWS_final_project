@@ -374,7 +374,7 @@ get_ecr_repository() {
         print_error "ECR repository not found"
         echo ""
         print_info "The repository must be created first"
-        print_info "Run: ./scripts/aws-ci-cd/11-setup-ecr.sh"
+        print_info "Run: ./scripts/jenkins/11-setup-ecr.sh"
         echo ""
         exit 1
     fi
@@ -644,17 +644,17 @@ display_summary() {
     print_info "Now deploy this image to AWS Lambda using SAM:"
 
     if [ "$BACKEND_TYPE" == "demo-backend" ]; then
-        print_command "./scripts/aws-ci-cd/31-cd-deploy-sam.sh --demo"
+        print_command "./scripts/jenkins/31-cd-deploy-sam.sh --demo"
         print_info "(Image tag will be auto-detected from ECR)"
         echo ""
         print_info "Or specify image tag explicitly:"
-        print_command "./scripts/aws-ci-cd/31-cd-deploy-sam.sh --demo --image-tag $IMAGE_TAG"
+        print_command "./scripts/jenkins/31-cd-deploy-sam.sh --demo --image-tag $IMAGE_TAG"
     else
-        print_command "./scripts/aws-ci-cd/31-cd-deploy-sam.sh --prod"
+        print_command "./scripts/jenkins/31-cd-deploy-sam.sh --prod"
         print_info "(Image tag will be auto-detected from ECR)"
         echo ""
         print_info "Or specify image tag explicitly:"
-        print_command "./scripts/aws-ci-cd/31-cd-deploy-sam.sh --prod --image-tag $IMAGE_TAG"
+        print_command "./scripts/jenkins/31-cd-deploy-sam.sh --prod --image-tag $IMAGE_TAG"
     fi
 
     echo ""
