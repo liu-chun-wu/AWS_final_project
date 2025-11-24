@@ -74,7 +74,7 @@
 
 **GATE**: All Phase 3a AND 3b checks must pass before proceeding to Phase 4
 
-## Phase 4 – Jenkinsfile Preparation (Define Before Deploy)
+## Phase 4 – Jenkinsfile Preparation + Local Jenkins Automation
 
 - [ ] CHK-P4-01 Jenkinsfile-CI created in ci/ directory
 - [ ] CHK-P4-02 Jenkinsfile-CI has all required stages (Checkout, Test, Build, Push)
@@ -86,14 +86,22 @@
 - [ ] CHK-P4-08 Jenkinsfile-CD validates image exists before deployment
 - [ ] CHK-P4-09 Both Jenkinsfiles committed to Git
 - [ ] CHK-P4-10 Jenkinsfiles visible in GitHub repository
+- [ ] CHK-P4-11 Local Jenkins container started via `scripts/jenkins/40-setup-jenkins-local.sh` (Docker socket + AWS credentials mounted)
+- [ ] CHK-P4-12 Local Jenkins job `flask-ci` created pointing at Jenkinsfile-CI
+- [ ] CHK-P4-13 Local Jenkins job `flask-cd` created pointing at Jenkinsfile-CD
+- [ ] CHK-P4-14 Local Jenkins CI job runs to completion (tests + build + push to ECR)
+- [ ] CHK-P4-15 Local Jenkins CD job runs to completion (SAM deploy + verification)
+- [ ] CHK-P4-16 Local Jenkins workflow documented in README/docs
 
-**Checkpoint**: Pipeline definitions complete and version-controlled
+**Checkpoint**: Pipelines are committed and validated inside local Jenkins (using real AWS resources)
+
+**GATE**: Do not provision Jenkins on EC2 until local Jenkins CI/CD runs successfully.
 
 ---
 
-## Phase 5 – Jenkins EC2 Deployment (Deploy After Manual Validation)
+## Phase 5 – Jenkins EC2 Deployment (Deploy After Local Jenkins Validation)
 
-- [ ] CHK-P5-01 EC2 provisioning script created (12-setup-jenkins-ec2.sh)
+- [ ] CHK-P5-01 EC2 provisioning script created (41-setup-jenkins-ec2.sh)
 - [ ] CHK-P5-02 EC2 instance launched (t2.small, Amazon Linux 2023)
 - [ ] CHK-P5-03 Security group created (SSH 22, Jenkins 8080, HTTPS 443)
 - [ ] CHK-P5-04 Instance profile attached with LabRole
@@ -112,7 +120,7 @@
 
 ---
 
-## Phase 6 – Jenkins Pipeline Testing (Test CI and CD Separately)
+## Phase 6 – Jenkins Pipeline Testing on EC2 (Test CI and CD Separately)
 
 - [ ] CHK-P6-01 CI job manually triggered in Jenkins UI
 - [ ] CHK-P6-02 CI job Stage 1 (Checkout) passes
@@ -123,11 +131,9 @@
 - [ ] CHK-P6-07 CD job Stage 1 (Validate) passes - Image exists in ECR
 - [ ] CHK-P6-08 CD job Stage 2 (Deploy) passes - SAM deploy succeeds
 - [ ] CHK-P6-09 CD job Stage 3 (Verify) passes - Health check passes
-- [ ] CHK-P6-10 CI job automatically triggers CD job on success
-- [ ] CHK-P6-11 CD job receives correct IMAGE_TAG from CI job
-- [ ] CHK-P6-12 CD job receives correct BACKEND_TYPE (demo-backend)
+- [ ] CHK-P6-10 Documentation/runbook created for triggering `flask-cd` manually after CI success
 
-**Checkpoint**: Both CI and CD pipelines validated in Jenkins
+**Checkpoint**: Both CI and CD pipelines validated in Jenkins (manual promotion flow confirmed)
 
 ---
 
@@ -136,15 +142,14 @@
 - [ ] CHK-P7-01 GitHub webhook configured (points to EC2 Jenkins)
 - [ ] CHK-P7-02 Webhook delivery test successful
 - [ ] CHK-P7-03 Push to Jeffery branch triggers CI job automatically
-- [ ] CHK-P7-04 CI job passes and triggers CD job
-- [ ] CHK-P7-05 CD job deploys to demo-backend stack
+- [ ] CHK-P7-04 Manual trigger instructions for `flask-cd` recorded (parameters, image tag selection)
+- [ ] CHK-P7-05 Manual `flask-cd` run deploys to demo-backend stack
 - [ ] CHK-P7-06 Health endpoint accessible via API Gateway
-- [ ] CHK-P7-07 Push to main branch triggers CI job
-- [ ] CHK-P7-08 CD job deploys to prod-backend stack (not demo)
-- [ ] CHK-P7-09 Both demo-backend and prod-backend stacks exist
-- [ ] CHK-P7-10 Both API Gateway endpoints respond correctly
+- [ ] CHK-P7-07 Manual `flask-cd` run (prod) or promotion checklist validated
+- [ ] CHK-P7-08 Both demo-backend and prod-backend stacks exist
+- [ ] CHK-P7-09 Both API Gateway endpoints respond correctly
 
-**Checkpoint**: Full automation validated (Push → Jenkins → AWS)
+**Checkpoint**: Webhook-driven CI validated; manual CD promotion run documented and verified
 
 ---
 
@@ -171,9 +176,9 @@
 - [ ] CHK-F02 README and quickstart guides updated and accurate
 - [ ] CHK-F03 Demo workflow validated (local → Jenkins → AWS)
 - [ ] CHK-F04 Resources cleanup plan documented (ECR, Lambda, API Gateway, EC2)
-- [ ] CHK-F05 DEVELOPMENT_DIARY.md updated with Phase 8 entry
+- [ ] CHK-F05 docs/archived/DEVELOPMENT_DIARY.md updated with Phase 8 entry
 - [ ] CHK-F06 All spec files updated (plan.md, tasks.md, checklist.md)
 - [ ] CHK-F07 CLAUDE.md reflects Phase 8 completion
 - [ ] CHK-F08 No outdated script paths in documentation
 - [ ] CHK-F09 All phases follow "Prove → Codify → Automate" philosophy
-- [ ] CHK-F10 Full CI/CD automation working (Push → Jenkins → AWS)
+- [ ] CHK-F10 CI webhook + manual CD promotion path working end-to-end

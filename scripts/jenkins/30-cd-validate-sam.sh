@@ -253,7 +253,7 @@ check_ecr_repository() {
         print_error "ECR repository not found"
         echo ""
         print_info "ECR repository must be created first"
-        print_info "Run: ./scripts/aws-ci-cd/11-setup-ecr.sh"
+        print_info "Run: ./scripts/jenkins/11-setup-ecr.sh"
         echo ""
         exit 1
     fi
@@ -305,7 +305,7 @@ check_ecr_images() {
         print_warning "No images in ECR yet"
         echo ""
         print_info "You need to build and push an image first"
-        print_info "Run: ./scripts/aws-ci-cd/20-ci-build-and-push.sh --demo"
+        print_info "Run: ./scripts/jenkins/20-ci-build-and-push.sh --demo"
         echo ""
         print_info "This validation can continue, but deployment will fail without images"
     fi
@@ -484,9 +484,9 @@ display_summary() {
     print_header "Phase 3b: Deploy SAM (Next)"
 
     print_info "Ready to deploy to AWS Lambda + API Gateway:"
-    print_command "./scripts/aws-ci-cd/31-cd-deploy-sam.sh --demo"
+    print_command "./scripts/jenkins/31-cd-deploy-sam.sh --demo"
     print_info "  OR"
-    print_command "./scripts/aws-ci-cd/31-cd-deploy-sam.sh --prod"
+    print_command "./scripts/jenkins/31-cd-deploy-sam.sh --prod"
     echo ""
 
     print_info "What deployment will do:"

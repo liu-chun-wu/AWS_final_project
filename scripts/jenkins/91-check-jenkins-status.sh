@@ -185,11 +185,11 @@ if [ ! -f "$INSTANCE_INFO_FILE" ]; then
     print_error "Instance information file not found: $INSTANCE_INFO_FILE"
     echo ""
     print_warning "Jenkins EC2 instance has not been set up yet."
-    print_explain "The .jenkins-ec2-*.info file is created by script 40-setup-jenkins-ec2.sh"
+    print_explain "The .jenkins-ec2-*.info file is created by script 41-setup-jenkins-ec2.sh"
     print_explain "This file stores instance metadata: ID, IP, security group, key pair, etc."
     echo ""
     echo "To set up Jenkins on EC2:"
-    echo "  ./scripts/aws-ci-cd/40-setup-jenkins-ec2.sh --$ENVIRONMENT"
+    echo "  ./scripts/jenkins/41-setup-jenkins-ec2.sh --$ENVIRONMENT"
     echo ""
     exit 1
 fi
@@ -237,7 +237,7 @@ if [ "$INSTANCE_INFO" == "null" ] || [ -z "$INSTANCE_INFO" ]; then
     print_explain "• AWS credentials don't have EC2 describe permissions"
     echo ""
     echo "To create a new instance:"
-    echo "  ./scripts/aws-ci-cd/40-setup-jenkins-ec2.sh --$ENVIRONMENT"
+    echo "  ./scripts/jenkins/41-setup-jenkins-ec2.sh --$ENVIRONMENT"
     echo ""
     exit 1
 fi
@@ -328,7 +328,7 @@ if [ "$CURRENT_PUBLIC_IP" != "$PUBLIC_IP" ] && [ "$CURRENT_PUBLIC_IP" != "N/A" ]
     print_warning "Action required:"
     echo ""
     echo "1. Update instance info file with new IP:"
-    echo "   ./scripts/aws-ci-cd/93-start-jenkins-ec2.sh --$ENVIRONMENT"
+    echo "   ./scripts/jenkins/93-start-jenkins-ec2.sh --$ENVIRONMENT"
     echo ""
     echo "2. Update GitHub webhook URL (if configured):"
     echo "   Old: http://$PUBLIC_IP:8080/github-webhook/"
@@ -449,7 +449,7 @@ if [ "$INSTANCE_STATE" == "running" ]; then
             print_warning "No jobs configured yet"
             echo ""
             echo "To create CI/CD jobs:"
-            echo "  ./scripts/aws-ci-cd/41-configure-jenkins-jobs.sh --$ENVIRONMENT"
+            echo "  ./scripts/jenkins/42-configure-jenkins-jobs.sh --$ENVIRONMENT"
         fi
     fi
 
@@ -576,7 +576,7 @@ elif [ "$INSTANCE_STATE" == "stopped" ]; then
     echo ""
 
     print_info "To start the instance:"
-    echo "  ./scripts/aws-ci-cd/93-start-jenkins-ec2.sh --$ENVIRONMENT"
+    echo "  ./scripts/jenkins/93-start-jenkins-ec2.sh --$ENVIRONMENT"
     echo ""
 
     print_warning "Important: Public IP will change when instance restarts"
@@ -638,7 +638,7 @@ if [ "$INSTANCE_STATE" == "running" ]; then
     echo ""
 
     echo "Stop instance to save costs:"
-    echo "  ./scripts/aws-ci-cd/94-stop-jenkins-ec2.sh --$ENVIRONMENT"
+    echo "  ./scripts/jenkins/94-stop-jenkins-ec2.sh --$ENVIRONMENT"
     echo ""
 
 elif [ "$INSTANCE_STATE" == "stopped" ]; then
@@ -646,16 +646,16 @@ elif [ "$INSTANCE_STATE" == "stopped" ]; then
     echo ""
 
     echo "Start instance:"
-    echo "  ./scripts/aws-ci-cd/93-start-jenkins-ec2.sh --$ENVIRONMENT"
+    echo "  ./scripts/jenkins/93-start-jenkins-ec2.sh --$ENVIRONMENT"
     echo ""
 fi
 
 echo "Other useful commands:"
-echo "  View all AWS resources:"
-echo "    ./scripts/aws-ci-cd/90-check-aws-status.sh"
+echo "  Smoke-test deployed API endpoints:"
+echo "    ./scripts/jenkins/32-cd-verify-deployment.sh --$ENVIRONMENT"
 echo ""
 echo "  Configure Jenkins CI/CD jobs:"
-echo "    ./scripts/aws-ci-cd/41-configure-jenkins-jobs.sh --$ENVIRONMENT"
+echo "    ./scripts/jenkins/42-configure-jenkins-jobs.sh --$ENVIRONMENT"
 echo ""
 echo "  View CloudWatch logs:"
 echo "    aws logs tail /aws/lambda/flask-demo-backend-FlaskDemoFunction-* --follow"

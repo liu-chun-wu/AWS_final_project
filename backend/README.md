@@ -83,19 +83,18 @@ git push origin Jeffery
 Jenkins will test and build but NOT deploy to AWS.
 
 ### Production (Main Branch)
-Push to main branch runs **full CI/CD** (deploys to AWS):
+Push to main branch prepares the code for release (CI), then you run `flask-cd` manually to deploy:
 - All CI stages (above)
-- Login to AWS ECR
-- Push Docker image to ECR
-- Deploy to AWS Lambda via SAM
+- Manual deploy step: Jenkins `flask-cd` job (BACKEND_DIR + IMAGE_TAG)
 
 ```bash
 git checkout main
 git merge Jeffery
 git push origin main
+# Jenkins UI → flask-cd → Build with Parameters
 ```
 
-Jenkins will test, build, AND deploy to AWS.
+Jenkins will test and build automatically; deployments happen when you trigger `flask-cd`.
 
 ## Important Notes
 

@@ -186,7 +186,7 @@ if [ ! -f "$INSTANCE_INFO_FILE" ]; then
     print_warning "This means Jenkins EC2 instance hasn't been created yet"
     echo ""
     echo "To create new instance:"
-    echo "  ./scripts/aws-ci-cd/40-setup-jenkins-ec2.sh --$ENVIRONMENT"
+    echo "  ./scripts/jenkins/41-setup-jenkins-ec2.sh --$ENVIRONMENT"
     echo ""
     exit 1
 fi
@@ -271,7 +271,7 @@ case "$INSTANCE_STATE" in
         echo ""
 
         print_info "To start the instance:"
-        echo "  ./scripts/aws-ci-cd/93-start-jenkins-ec2.sh --$ENVIRONMENT"
+        echo "  ./scripts/jenkins/93-start-jenkins-ec2.sh --$ENVIRONMENT"
         echo ""
         ;;
 
@@ -388,7 +388,7 @@ case "$INSTANCE_STATE" in
         echo "When you're ready to use Jenkins again:"
         echo ""
         echo "1. Start the instance:"
-        echo "   ./scripts/aws-ci-cd/93-start-jenkins-ec2.sh --$ENVIRONMENT"
+        echo "   ./scripts/jenkins/93-start-jenkins-ec2.sh --$ENVIRONMENT"
         echo ""
         echo "2. Note the new public IP address (will be shown by script 93)"
         echo ""
@@ -423,11 +423,11 @@ case "$INSTANCE_STATE" in
         echo ""
 
         echo "Check current status:"
-        echo "  ./scripts/aws-ci-cd/91-check-jenkins-status.sh --$ENVIRONMENT"
+        echo "  ./scripts/jenkins/91-check-jenkins-status.sh --$ENVIRONMENT"
         echo ""
 
         echo "Re-run this script in 1 minute:"
-        echo "  ./scripts/aws-ci-cd/94-stop-jenkins-ec2.sh --$ENVIRONMENT"
+        echo "  ./scripts/jenkins/94-stop-jenkins-ec2.sh --$ENVIRONMENT"
         echo ""
         exit 0
         ;;
@@ -451,7 +451,7 @@ case "$INSTANCE_STATE" in
         print_warning "You must create a new instance from scratch"
         echo ""
         echo "To create a new instance:"
-        echo "  ./scripts/aws-ci-cd/40-setup-jenkins-ec2.sh --$ENVIRONMENT"
+        echo "  ./scripts/jenkins/41-setup-jenkins-ec2.sh --$ENVIRONMENT"
         echo ""
         exit 1
         ;;
@@ -538,19 +538,15 @@ echo ""
 print_header "Useful Commands"
 
 echo "Check instance status:"
-echo "  ./scripts/aws-ci-cd/91-check-jenkins-status.sh --$ENVIRONMENT"
+echo "  ./scripts/jenkins/91-check-jenkins-status.sh --$ENVIRONMENT"
 echo ""
 
 echo "Start instance (when needed):"
-echo "  ./scripts/aws-ci-cd/93-start-jenkins-ec2.sh --$ENVIRONMENT"
+echo "  ./scripts/jenkins/93-start-jenkins-ec2.sh --$ENVIRONMENT"
 echo ""
 
-echo "View all AWS resources:"
-echo "  ./scripts/aws-ci-cd/90-check-aws-status.sh"
-echo ""
-
-echo "Terminate instance permanently (delete all data):"
-echo "  ./scripts/aws-ci-cd/99-cleanup-all.sh"
+echo "Smoke-test deployed API:"
+echo "  ./scripts/jenkins/32-cd-verify-deployment.sh --$ENVIRONMENT"
 echo ""
 
 print_header "Stop Operation Complete"

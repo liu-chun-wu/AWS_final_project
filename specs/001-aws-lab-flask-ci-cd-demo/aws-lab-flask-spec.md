@@ -37,18 +37,19 @@ As a student developer, I can build and run the same Flask API as a Docker conta
 
 ---
 
-### User Story 3 – Local Jenkins CI pipeline (Priority: P2)
+### User Story 3 – Local Jenkins CI/CD pipeline (Priority: P2)
 
-As a student developer, I can configure a Jenkins pipeline (using a Jenkinsfile) that checks out code, installs dependencies, runs tests, and builds the Docker image whenever triggered.
+As a student developer, I can configure a Jenkins pipeline (using Jenkinsfiles) that runs inside a local Docker container, executes the full CI/CD flow (tests, Docker build, ECR push, SAM deploy), and uses my AWS credentials so that I can debug the entire automation before provisioning Jenkins on EC2.
 
-**Why this priority**: This simulates the CI portion of the final architecture and trains the team on pipeline-as-code before touching AWS.
+**Why this priority**: This simulates the final Jenkins experience with minimal cost. By proving both CI and CD locally, the EC2 migration becomes an infrastructure exercise rather than a debugging marathon.
 
-**Independent Test**: Starting from an empty Jenkins instance running in Docker, connect it to the Git repository and run the pipeline. The build completes successfully and produces a Docker image.
+**Independent Test**: Starting from an empty Jenkins instance running in Docker, connect it to the Git repository, supply AWS credentials, and run the CI and CD pipelines. The CI job should publish an image to ECR, and the CD job should deploy the Lambda/API Gateway stack successfully.
 
 **Acceptance Scenarios**:
 
-1. **Given** Jenkins is running in Docker and has access to the Git repo, **When** the pipeline is triggered manually, **Then** all stages (Checkout, Install deps, Tests, Build image) pass.
-2. **Given** a failing test is introduced, **When** the pipeline is re-run, **Then** the build is marked as failed and the failing stage is visible.
+1. **Given** local Jenkins is running in Docker with access to the Git repo and AWS credentials, **When** the CI pipeline is triggered manually, **Then** all stages (Checkout, Install deps, Tests, Build image, Push to ECR) pass.
+2. **Given** the CI job published an image tag, **When** the CD pipeline is triggered locally with that tag, **Then** SAM deploys the container to Lambda and `/health` succeeds via API Gateway.
+3. **Given** a failing test is introduced, **When** the CI pipeline is re-run, **Then** the build is marked as failed and the failing stage is visible.
 
 ---
 
@@ -56,7 +57,7 @@ As a student developer, I can configure a Jenkins pipeline (using a Jenkinsfile)
 
 As a student developer, I can later reuse the same Jenkins pipeline on an EC2 instance inside AWS Learner Lab to build, push the Docker image to ECR, and deploy a Lambda container behind API Gateway using AWS SAM.
 
-**Why this priority**: This is the final integration with AWS and demonstrates familiarity with multiple services within Learner Lab restrictions.
+**Why this priority**: This is the final integration with AWS and demonstrates familiarity with multiple services within Learner Lab restrictions. Because the Jenkinsfiles already ran successfully on a local Jenkins (User Story 3), this story focuses on moving that exact automation onto an EC2 host that leverages IAM instance profiles.
 
 **Independent Test**: From Jenkins running on EC2, trigger the pipeline; it should build the image, push to ECR, and run `sam deploy` to update the Lambda function and API Gateway endpoint.
 
