@@ -132,22 +132,150 @@ def generate_image():
     except Exception as e:
         return jsonify({"success": False, "error": str(e)}), 500
 
+# @app.route('/generate-audio', methods=['POST'])
+# def generate_audio():
+#     """提交音樂生成任務（非同步）"""
+#     try:
+#         data = request.json
+#         prompt = data.get('prompt')
+#         discord_channel_id = data.get('discord_channel_id')
+#         discord_user_id = data.get('discord_user_id')
+        
+#         if not prompt:
+#             return jsonify({"success": False, "error": "缺少 prompt"}), 400
+        
+#         # 生成任務 ID
+#         task_id = str(uuid.uuid4())
+        
+#         # 準備 Suno API 請求
+#         payload = {
+#             "prompt": prompt,
+#             "style": "古典",
+#             "title": "AI Generated Music",
+#             "customMode": True,
+#             "instrumental": True,
+#             "model": "V3_5",
+#             "callBackUrl": f"{request.host_url}audio-callback"
+#         }
+        
+#         headers = {
+#             "Authorization": f"Bearer {SUNO_TOKEN}",
+#             "Content-Type": "application/json"
+#         }
+        
+#         # 發送到 Suno API
+#         response = requests.post(SUNO_URL, json=payload, headers=headers, timeout=60)
+        
+#         if response.status_code != 200:
+#             return jsonify({
+#                 "success": False,
+#                 "error": f"Suno API 錯誤: {response.status_code}"
+#             }), 500
+        
+#         suno_data = response.json()
+        
+#         # 儲存任務資訊
+#         tasks[task_id] = {
+#             "prompt": prompt,
+#             "discord_channel_id": discord_channel_id,
+#             "discord_user_id": discord_user_id,
+#             "suno_response": suno_data,
+#             "status": "processing",
+#             "created_at": datetime.now().isoformat()
+#         }
+        
+#         return jsonify({
+#             "success": True,
+#             "task_id": task_id,
+#             "message": "音樂生成中，完成後會通知您"
+#         })
+        
+#     except Exception as e:
+#         return jsonify({"success": False, "error": str(e)}), 500
+
+# @app.route('/audio-callback', methods=['POST'])
+# def audio_callback():
+#     """接收 Suno 的 callback"""
+#     try:
+#         data = request.json
+#         audio_url = data.get('audio_url')
+        
+#         if not audio_url:
+#             return jsonify({"success": False, "error": "缺少 audio_url"}), 400
+        
+#         # 找到對應的任務
+#         task_id = None
+#         for tid, task in tasks.items():
+#             if task.get('status') == 'processing':
+#                 task_id = tid
+#                 break
+        
+#         if not task_id:
+#             return jsonify({"success": False, "error": "找不到對應任務"}), 404
+        
+#         task = tasks[task_id]
+        
+#         # 下載音樂檔案
+#         audio_resp = requests.get(audio_url, timeout=60)
+        
+#         # 儲存到本地
+#         timestamp = datetime.now().strftime("%Y%m%d_%H%M%S")
+#         filename = f"{timestamp}_{uuid.uuid4().hex[:8]}.mp3"
+#         local_path = f"{LOCAL_STORAGE}/music/{filename}"
+        
+#         with open(local_path, 'wb') as f:
+#             f.write(audio_resp.content)
+        
+#         local_url = f"http://localhost:5000/files/music/{filename}"
+        
+#         # === S3 上傳 (本地測試先註解) ===
+#         # audio_bytes = io.BytesIO(audio_resp.content)
+#         # s3_key = f"music/{timestamp}_{uuid.uuid4().hex[:8]}.mp3"
+#         # s3_client.upload_fileobj(
+#         #     audio_bytes,
+#         #     S3_BUCKET,
+#         #     s3_key,
+#         #     ExtraArgs={'ContentType': 'audio/mpeg'}
+#         # )
+#         # s3_url = f"https://{S3_BUCKET}.s3.{AWS_REGION}.amazonaws.com/{s3_key}"
+#         # === S3 上傳結束 ===
+        
+#         # 更新任務狀態
+#         task['status'] = 'completed'
+#         task['audio_url'] = audio_url
+#         task['local_url'] = local_url
+#         task['local_path'] = local_path
+#         # task['s3_url'] = s3_url  # 將來啟用
+        
+#         # TODO: 通知 Discord Bot
+#         notify_discord_bot(task)
+        
+#         return jsonify({"success": True, "local_url": local_url})
+        
+#     except Exception as e:
+#         return jsonify({"success": False, "error": str(e)}), 500
 @app.route('/generate-audio', methods=['POST'])
 def generate_audio():
-    """提交音樂生成任務（非同步）"""
     try:
+        print("=== /generate-audio 被呼叫 ===")
+
         data = request.json
+        print("收到的 JSON:", data)
+
         prompt = data.get('prompt')
         discord_channel_id = data.get('discord_channel_id')
         discord_user_id = data.get('discord_user_id')
-        
+
         if not prompt:
-            return jsonify({"success": False, "error": "缺少 prompt"}), 400
-        
-        # 生成任務 ID
-        task_id = str(uuid.uuid4())
-        
-        # 準備 Suno API 請求
+            print("❌ 缺少 prompt")
+            return jsonify({
+                "success": False,
+                "error": "缺少 prompt"
+            }), 400
+
+        local_task_id = str(uuid.uuid4())
+        print("生成的 local_task_id:", local_task_id)
+
         payload = {
             "prompt": prompt,
             "style": "古典",
@@ -157,103 +285,125 @@ def generate_audio():
             "model": "V3_5",
             "callBackUrl": f"{request.host_url}audio-callback"
         }
-        
+        print("Suno payload:", payload)
+
         headers = {
             "Authorization": f"Bearer {SUNO_TOKEN}",
             "Content-Type": "application/json"
         }
-        
-        # 發送到 Suno API
-        response = requests.post(SUNO_URL, json=payload, headers=headers, timeout=10)
-        
+
+        print("正在呼叫 Suno API...")
+        response = requests.post(SUNO_URL, json=payload, headers=headers, timeout=60)
+        print("Suno 回應狀態:", response.status_code)
+        print("Suno 回應內容:", response.text)
+
         if response.status_code != 200:
             return jsonify({
                 "success": False,
-                "error": f"Suno API 錯誤: {response.status_code}"
+                "error": f"Suno API 錯誤: {response.status_code}",
+                "details": response.text
             }), 500
-        
-        suno_data = response.json()
-        
-        # 儲存任務資訊
-        tasks[task_id] = {
+
+        suno_resp = response.json()
+        print("解析後 Suno JSON:", suno_resp)
+        #以上測試過是沒問題的
+
+        # suno_request_id = suno_resp.get("id") or suno_resp.get("requestId")
+        # ★★★ 修正：抓 taskId ★★★
+        suno_request_id = (
+            suno_resp.get("id")
+            or suno_resp.get("requestId")
+            or suno_resp.get("data", {}).get("taskId")
+        )
+
+        if not suno_request_id:
+            print("❌ Suno 沒有回傳 requestId")
+            return jsonify({
+                "success": False,
+                "error": "Suno 未回傳 requestId"
+            }), 500
+
+        tasks[local_task_id] = {
             "prompt": prompt,
             "discord_channel_id": discord_channel_id,
             "discord_user_id": discord_user_id,
-            "suno_response": suno_data,
+            "suno_request_id": suno_request_id,
             "status": "processing",
             "created_at": datetime.now().isoformat()
         }
-        
+
+        print("任務已儲存:", tasks[local_task_id])
+
         return jsonify({
             "success": True,
-            "task_id": task_id,
-            "message": "音樂生成中，完成後會通知您"
+            "task_id": local_task_id,
+            "message": "音樂生成中"
         })
-        
+
     except Exception as e:
+        print("❌ Flask 在 /generate-audio 發生錯誤:", e)
         return jsonify({"success": False, "error": str(e)}), 500
 
-@app.route('/audio-callback', methods=['POST'])
-def audio_callback():
-    """接收 Suno 的 callback"""
-    try:
-        data = request.json
-        audio_url = data.get('audio_url')
-        
-        if not audio_url:
-            return jsonify({"success": False, "error": "缺少 audio_url"}), 400
-        
-        # 找到對應的任務
-        task_id = None
-        for tid, task in tasks.items():
-            if task.get('status') == 'processing':
-                task_id = tid
-                break
-        
-        if not task_id:
-            return jsonify({"success": False, "error": "找不到對應任務"}), 404
-        
-        task = tasks[task_id]
-        
-        # 下載音樂檔案
-        audio_resp = requests.get(audio_url, timeout=60)
-        
-        # 儲存到本地
-        timestamp = datetime.now().strftime("%Y%m%d_%H%M%S")
-        filename = f"{timestamp}_{uuid.uuid4().hex[:8]}.mp3"
-        local_path = f"{LOCAL_STORAGE}/music/{filename}"
-        
-        with open(local_path, 'wb') as f:
-            f.write(audio_resp.content)
-        
-        local_url = f"http://localhost:5000/files/music/{filename}"
-        
-        # === S3 上傳 (本地測試先註解) ===
-        # audio_bytes = io.BytesIO(audio_resp.content)
-        # s3_key = f"music/{timestamp}_{uuid.uuid4().hex[:8]}.mp3"
-        # s3_client.upload_fileobj(
-        #     audio_bytes,
-        #     S3_BUCKET,
-        #     s3_key,
-        #     ExtraArgs={'ContentType': 'audio/mpeg'}
-        # )
-        # s3_url = f"https://{S3_BUCKET}.s3.{AWS_REGION}.amazonaws.com/{s3_key}"
-        # === S3 上傳結束 ===
-        
-        # 更新任務狀態
-        task['status'] = 'completed'
-        task['audio_url'] = audio_url
-        task['local_url'] = local_url
-        task['local_path'] = local_path
-        # task['s3_url'] = s3_url  # 將來啟用
-        
-        # TODO: 通知 Discord Bot
-        notify_discord_bot(task)
-        
-        return jsonify({"success": True, "local_url": local_url})
-        
-    except Exception as e:
-        return jsonify({"success": False, "error": str(e)}), 500
+
+
+# @app.route('/audio-callback', methods=['POST'])
+# def audio_callback():
+#     try:
+#         data = request.json
+
+#         # Suno callback 通常會有這些欄位
+#         suno_track_id = data.get("id")
+#         audio_url = data.get("audio_url")
+
+#         if not suno_track_id or not audio_url:
+#             return jsonify({
+#                 "success": False,
+#                 "error": "缺少必要 callback 資料（id 或 audio_url）"
+#             }), 400
+
+#         # ★★★ 正確搜尋任務方式（根據 suno_request_id） ★★★
+#         local_task_id = None
+#         for tid, task in tasks.items():
+#             if task.get("suno_request_id") == suno_track_id:
+#                 local_task_id = tid
+#                 break
+
+#         if not local_task_id:
+#             return jsonify({
+#                 "success": False,
+#                 "error": "找不到對應任務（可能是多人同時生成但你原本的程式寫法錯誤）"
+#             }), 404
+
+#         task = tasks[local_task_id]
+
+#         # 下載音頻
+#         audio_resp = requests.get(audio_url, timeout=60)
+
+#         timestamp = datetime.now().strftime("%Y%m%d_%H%M%S")
+#         filename = f"{timestamp}_{uuid.uuid4().hex[:8]}.mp3"
+#         local_path = os.path.join(MUSIC_DIR, filename)
+
+#         with open(local_path, "wb") as f:
+#             f.write(audio_resp.content)
+
+#         public_url = f"{request.host_url}files/music/{filename}"
+
+#         # 更新任務
+#         task["status"] = "completed"
+#         task["audio_url"] = audio_url
+#         task["local_path"] = local_path
+#         task["public_url"] = public_url
+
+#         # 發給 Discord Bot（你自己的函數）
+#         notify_discord_bot(task)
+
+#         return jsonify({
+#             "success": True,
+#             "local_url": public_url
+#         })
+
+#     except Exception as e:
+#         return jsonify({"success": False, "error": str(e)}), 500
 
 @app.route('/files/<file_type>/<filename>', methods=['GET'])
 def serve_file(file_type, filename):

@@ -47,6 +47,24 @@ async def create_photo(ctx, *, msg):
             if data.get('success'):
                 local_url = data.get('local_url')
                 local_path = data.get('local_path')
+                
+                # Fix: Try to read file locally first to avoid localhost connection issues
+                if local_path and os.path.exists(local_path):
+                    try:
+                        with open(local_path, 'rb') as f:
+                            img_data = f.read()
+                        
+                        await ctx.send(
+                            f"🎨 **已根據 `{msg}` 生成圖片！**\n📁 本地路徑: {local_path}",
+                            file=discord.File(
+                                fp=io.BytesIO(img_data),
+                                filename="result.png"
+                            )
+                        )
+                        return # Success, exit function
+                    except Exception as e:
+                        print(f"Failed to read local file: {e}")
+                        # Proceed to fallback
 
                 async with aiohttp.ClientSession() as session:
                     async with session.get(local_url) as img_response:
@@ -73,39 +91,42 @@ async def create_photo(ctx, *, msg):
 
 @bot.command()
 async def create_audio(ctx, *, msg):
-    await ctx.trigger_typing()
-    
-    try:
-        # 使用異步 HTTP 請求
-        async with aiohttp.ClientSession() as session:
-            async with session.post(
-                f"{FLASK_API_URL}/generate-audio",
-                json={
-                    "prompt": msg,
-                    "discord_channel_id": str(ctx.channel.id),
-                    "discord_user_id": str(ctx.author.id)
-                },
-                timeout=aiohttp.ClientTimeout(total=10)
-            ) as response:
-                
-                if response.status != 200:
-                    error_text = await response.text()
-                    await ctx.send(f"❌ 錯誤: {response.status}\n{error_text}")
-                    return
-                
-                data = await response.json()
-        
-        if data.get('success'):
-            await ctx.send(
-                f"⏳ **正在生成音樂...**\n"
-                f"📝 任務 ID: `{data.get('task_id')}`\n"
-                f"🎵 提示: `{msg}`\n"
-                f"完成後會自動通知您！"
-            )
-        else:
-            await ctx.send(f"❌ 提交失敗: {data.get('error')}")
+    async with ctx.typing(): 
+        try:
+            # 使用異步 HTTP 請求
+            async with aiohttp.ClientSession() as session:
+                async with session.post(
+                    f"{FLASK_API_URL}/generate-audio",
+                    json={
+                        "prompt": msg,
+                        "discord_channel_id": str(ctx.channel.id),
+                        "discord_user_id": str(ctx.author.id)
+                    },
+                    timeout=aiohttp.ClientTimeout(total=10)
+                ) as response:
+                    
+                    if response.status != 200:
+                        error_text = await response.text()
+                        await ctx.send(
+                            f"❌ 錯誤: HTTP {response.status}\n"
+                            f"🔍 詳細資訊:\n```\n{error_text}\n```"
+                        )
+                        return
+
+                    
+                    data = await response.json()
             
-    except Exception as e:
-        await ctx.send(f"❌ 發生錯誤: {str(e)}")
+            if data.get('success'):
+                await ctx.send(
+                    f"⏳ **正在生成音樂...**\n"
+                    f"📝 任務 ID: `{data.get('task_id')}`\n"
+                    f"🎵 提示: `{msg}`\n"
+                    f"完成後會自動通知您！"
+                )
+            else:
+                await ctx.send(f"❌ 提交失敗: {data.get('error')}")
+                
+        except Exception as e:
+            await ctx.send(f"❌ 發生錯誤: {str(e)}")
 
 bot.run(DC_token, log_handler=handler, log_level=logging.DEBUG)
