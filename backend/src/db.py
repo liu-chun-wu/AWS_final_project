@@ -1,37 +1,69 @@
-# db.py
-import sqlite3
-from datetime import datetime
+import os
+import uuid
+import datetime
+import boto3
+from boto3.dynamodb.conditions import Key
+from dotenv import load_dotenv
 
-DB_NAME = "bot_records.db"
+# 載入環境變數
+load_dotenv()
+AWS_REGION = os.getenv("AWS_DEFAULT_REGION", "us-east-1")
+TABLE_NAME = os.getenv("DYNAMODB_TABLE", "UserRecords")
 
-def init_db():
-    conn = sqlite3.connect(DB_NAME)
-    c = conn.cursor()
-    c.execute('''
-        CREATE TABLE IF NOT EXISTS records (
-            id INTEGER PRIMARY KEY AUTOINCREMENT,
-            user_id TEXT NOT NULL,
-            timestamp TEXT NOT NULL,
-            prompt TEXT,
-            file_url TEXT
-        )
-    ''')
-    # ✅ 清空資料表（選用）
-    c.execute("DELETE FROM records")
-    # ✅ 重設自動編號
-    c.execute("DELETE FROM sqlite_sequence WHERE name='records'")
+# 建立 DynamoDB 資源
+dynamodb = boto3.resource("dynamodb", region_name=AWS_REGION)
+table = dynamodb.Table(TABLE_NAME)
+
+def insert_record(user_id: str, prompt: str, file_url: str, record_type: str = "image", status: str = "success", extra_meta: dict = None):
+    """
+    新增一筆紀錄到 DynamoDB
+    """
+    record_id = str(uuid.uuid4())
+    created_at = datetime.datetime.utcnow().isoformat()
+
+    item = {
+        "user_id": user_id,
+        "record_id": record_id,
+        "prompt": prompt,
+        "file_url": file_url,
+        "created_at": created_at,
+        "type": record_type,
+        "status": status,
+    }
+
+    if extra_meta:
+        item["extra_meta"] = extra_meta
+
+    table.put_item(Item=item)
+    return item
+
+def get_history(user_id: str):
     
-    conn.commit()
-    conn.close()
+    # 查詢某個使用者的所有紀錄
+    resp = table.query(
+        KeyConditionExpression=Key("user_id").eq(user_id)
+    )
+    items = resp.get("Items", [])
+
+    # 只回傳記錄中的 prompt 跟 url
+    simple_items = [
+        {
+            "prompt": item.get("prompt"),
+            "file_url": item.get("file_url"),
+            "type": item.get("type")
+        }
+        for item in items
+    ]
+    return simple_items
 
 
-def insert_record(user_id, prompt, file_url):
-    conn = sqlite3.connect(DB_NAME)
-    c = conn.cursor()
-    timestamp = datetime.now().isoformat()
-    c.execute('''
-        INSERT INTO records (user_id, timestamp, prompt, file_url)
-        VALUES (?, ?, ?, ?)
-    ''', (user_id, timestamp, prompt, file_url))
-    conn.commit()
-    conn.close()
+def get_record(user_id: str, record_id: str):
+    
+    # 查詢單筆紀錄
+    resp = table.get_item(
+        Key={
+            "user_id": user_id,
+            "record_id": record_id
+        }
+    )
+    return resp.get("Item")

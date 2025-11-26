@@ -1,0 +1,52 @@
+# Python 套件和庫
+PIL/
+awsgi/
+blinker/
+certifi/
+charset_normalizer/
+click/
+dotenv/
+flask/
+httptools/
+idna/
+itsdangerous/
+jinja2/
+markupsafe/
+requests/
+sample/
+spec/
+urllib3/
+uvloop/
+websockets/
+werkzeug/
+
+# 套件分發資訊
+*.dist-info/
+aws_wsgi-0.2.7.dist-info/
+blinker-1.9.0.dist-info/
+certifi-2025.11.12.dist-info/
+charset_normalizer-3.4.4.dist-info/
+click-8.3.1.dist-info/
+flask-3.1.2.dist-info/
+httptools-0.7.1.dist-info/
+idna-3.11.dist-info/
+itsdangerous-2.2.0.dist-info/
+jinja2-3.1.6.dist-info/
+markupsafe-3.0.3.dist-info/
+pillow-12.0.0.dist-info/
+python_dotenv-1.2.1.dist-info/
+requests-2.32.5.dist-info/
+urllib3-2.5.0.dist-info/
+uvloop-0.22.1.dist-info/
+websockets-15.0.1.dist-info/
+werkzeug-3.1.3.dist-info/
+
+# 二進位庫
+pillow.libs/
+bin/
+
+# 日誌檔案
+discord.log
+
+# 壓縮檔案
+*.zip
