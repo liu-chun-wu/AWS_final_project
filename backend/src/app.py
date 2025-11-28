@@ -7,6 +7,7 @@ import awsgi
 import boto3
 from db import insert_record, get_history
 import json
+from urllib.parse import quote_plus
 
 load_dotenv()
 HuggingFace_Token = os.getenv("HUGGINGFACE_TOKEN")
@@ -16,7 +17,6 @@ HuggingFace_URL = "https://router.huggingface.co/hf-inference/models/stabilityai
 SUNO_URL = "https://api.sunoapi.org/api/v1/generate"
 
 app = Flask(__name__)
-
 s3 = boto3.client("s3")  # 建立 s3 client
 
 @app.route("/generate-image", methods=["POST"])
@@ -141,14 +141,23 @@ def generate_audio():
         data = request.json
         print("收到的 JSON:", data)
 
+        user_id = data.get('user_id', 'unknown')
         prompt = data.get('prompt')
-        # discord_channel_id = data.get('discord_channel_id')
-        # discord_user_id = data.get('discord_user_id')
+        # 回傳網址(先訂好)
+        timestamp = datetime.datetime.now().strftime("%Y%m%d%H%M%S")
+        filename = f"{timestamp}_{uuid.uuid4().hex[:8]}.mp3"
+        s3_key = f"Audios/{filename}"
 
+        encoded_prompt = quote_plus(prompt)
+        encoded_user_id = quote_plus(str(user_id))
+        encoded_s3_key = quote_plus(s3_key)
+        
         if not prompt:
             print("❌ 缺少 prompt")
             return jsonify({"success": False, "error": "缺少 prompt"}), 400
 
+        base_callback = "https://xpapysqd2i.execute-api.us-east-1.amazonaws.com/prod/audio-callback"    
+        callback_url = f"{base_callback}?user_id={encoded_user_id}&prompt={encoded_prompt}&s3_key={encoded_s3_key}"
         payload = {
             "prompt": prompt,
             "style": "古典",
@@ -156,7 +165,7 @@ def generate_audio():
             "customMode": True,
             "instrumental": True,
             "model": "V3_5",
-            "callBackUrl": "https://xpapysqd2i.execute-api.us-east-1.amazonaws.com/prod/audio-callback"
+            "callBackUrl": callback_url
         }
 
         print("Suno payload:", payload)
@@ -189,15 +198,25 @@ def generate_audio():
             or suno_resp.get("data", {}).get("taskId")
         )
 
+        presigned_url = s3.generate_presigned_url(
+                ClientMethod="get_object",
+                Params={
+                    "Bucket": S3_BUCKET_NAME,
+                    "Key": s3_key
+                },
+                ExpiresIn=3600
+            )
+
         if not suno_request_id:
             print("❌ Suno 沒有回傳 taskId")
             return jsonify({
                 "success": False,
                 "error": "Suno 未回傳 taskId"
-            }), 500
+            }), 500       
 
         # 回傳給 Discord bot，可以用來顯示“開始生成中”
         return jsonify({
+            "download_url": presigned_url,
             "success": True,
             "task_id": suno_request_id,
             "message": "音樂生成中"
@@ -229,10 +248,8 @@ def audio_callback():
             # 下載音檔
             mp3 = requests.get(audio_url).content
 
-            # 上傳 S3
-            timestamp = datetime.datetime.now().strftime("%Y%m%d%H%M%S")
-            filename = f"{timestamp}_{uuid.uuid4().hex[:8]}.mp3"
-            s3_key = f"Audios/{filename}"
+            # 使用建立好的 s3_key
+            s3_key = request.args.get("s3_key")
 
             try:
                 s3.put_object(
@@ -247,14 +264,17 @@ def audio_callback():
                     "error": f"上傳 S3 失敗: {str(e)}"
                 }), 500
 
+            user_id = request.args.get("user_id", "no user id")
+            prompt = request.args.get("prompt", "no prompt")
+            
             public_url=f"https://{S3_BUCKET_NAME}.s3.amazonaws.com/{s3_key}"
             local_url=f"s3://{S3_BUCKET_NAME}/{s3_key}"
 
             # 存進 DynamoDB
             try:
                 result = insert_record(
-                    user_id="no user id",
-                    prompt="no prompt",
+                    user_id=user_id,
+                    prompt=prompt,
                     file_url=public_url,
                     record_type="audio",
                     status="success"

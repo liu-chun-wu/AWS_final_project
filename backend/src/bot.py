@@ -6,6 +6,7 @@ import os
 import io
 import aiohttp
 import requests
+import asyncio
 
 load_dotenv()
 DC_token ="MTQzNTI3MDk4NDc4NDU0Nzg0Mg.GInp2b.JOi1Ke8hUGHyH_W0tp2q-D0WCtFiDglyUCZi3U"
@@ -71,26 +72,32 @@ async def create_photo(ctx, *, prompt: str = "未輸入prompt"):
 async def create_audio(ctx,*,prompt: str="未輸入prompt"):
     # await ctx.send("這是生成音樂的功能")
     try:
-        payload = {"prompt": prompt}
+        payload = {"prompt": prompt, "user_id": str(ctx.author.id)}
         response = requests.post(f"{FLASK_API_URL}/generate-audio", json=payload, timeout=10)
+        wait_time = 300
+        await ctx.send(f"Please wait for {wait_time}, Suno is making audio.")
+        await asyncio.sleep(wait_time)
         data = response.json()
-        
+        """
         if not data.get("success"):
             await ctx.send(f"❌ Flask 回傳錯誤: {data.get('reply', '未知錯誤')}")
             return
-
-        # # 2️⃣ 取得 local_url
-        # file_url = data.get("local_url")
-        # if not file_url:
-        #     await ctx.send("❌ Flask 沒有回傳檔案 URL")
-        #     return
+        """
         
+        if not data.get("success"):
+            await ctx.send(f"❌ Flask 回傳錯誤: {data.get('error') or data}")
+            return
+        
+        await ctx.send(f"data 內容: {data}")
         # 3️⃣ 從 URL 下載檔案內容
         file_resp = data.get("download_url")
         # file_content = file_resp.text  # 文字檔使用 text
         
         # 4️⃣ 將內容回 Discord
-        await ctx.send(f"✅ 從 Flask 取得檔案內容:\n{file_resp}")
+        await ctx.send(f"✅ 從 Flask 取得音樂網址:\n{file_resp}")
+
+        task_id = data.get("task_id")
+        await ctx.send(f"✅ Suno 開始生成中，task_id: {task_id}")
 
     except Exception as e:
         await ctx.send(f"❌ 呼叫 Flask 失敗: {e}")
