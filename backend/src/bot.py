@@ -88,7 +88,7 @@ async def create_audio(ctx,*,prompt: str="未輸入prompt"):
             await ctx.send(f"❌ Flask 回傳錯誤: {data.get('error') or data}")
             return
         
-        await ctx.send(f"data 內容: {data}")
+        # await ctx.send(f"data 內容: {data}")
         # 3️⃣ 從 URL 下載檔案內容
         file_resp = data.get("download_url")
         # file_content = file_resp.text  # 文字檔使用 text
@@ -96,8 +96,8 @@ async def create_audio(ctx,*,prompt: str="未輸入prompt"):
         # 4️⃣ 將內容回 Discord
         await ctx.send(f"✅ 從 Flask 取得音樂網址:\n{file_resp}")
 
-        task_id = data.get("task_id")
-        await ctx.send(f"✅ Suno 開始生成中，task_id: {task_id}")
+        # task_id = data.get("task_id")
+        # await ctx.send(f"✅ Suno 開始生成中，task_id: {task_id}")
 
     except Exception as e:
         await ctx.send(f"❌ 呼叫 Flask 失敗: {e}")
