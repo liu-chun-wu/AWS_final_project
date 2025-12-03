@@ -34,7 +34,6 @@ async def hello(ctx):
 async def create_photo(ctx, *, prompt: str = "未輸入prompt"):
     try:
         payload = {"prompt": prompt, "user_id": str(ctx.author.id)}
-        # response = requests.post("http://localhost:5000/generate-image", json=payload, timeout=60)
         response = requests.post(f"{FLASK_API_URL}/generate-image", json=payload, timeout=60)
         data = response.json()
         """
@@ -74,30 +73,23 @@ async def create_audio(ctx,*,prompt: str="未輸入prompt"):
     try:
         payload = {"prompt": prompt, "user_id": str(ctx.author.id)}
         response = requests.post(f"{FLASK_API_URL}/generate-audio", json=payload, timeout=10)
-        wait_time = 300
-        await ctx.send(f"Please wait for {wait_time}, Suno is making audio.")
-        await asyncio.sleep(wait_time)
+        # wait_time = 300
+        # await ctx.send(f"⏳ Please wait for a moment, Suno is making audio.")
+        # await asyncio.sleep(wait_time)
         data = response.json()
-        """
-        if not data.get("success"):
-            await ctx.send(f"❌ Flask 回傳錯誤: {data.get('reply', '未知錯誤')}")
-            return
-        """
         
         if not data.get("success"):
             await ctx.send(f"❌ Flask 回傳錯誤: {data.get('error') or data}")
             return
         
-        # await ctx.send(f"data 內容: {data}")
         # 3️⃣ 從 URL 下載檔案內容
         file_resp = data.get("download_url")
+        front_url = file_resp.split('?', 1)[0]
         # file_content = file_resp.text  # 文字檔使用 text
         
         # 4️⃣ 將內容回 Discord
-        await ctx.send(f"✅ 從 Flask 取得音樂網址:\n{file_resp}")
-
-        # task_id = data.get("task_id")
-        # await ctx.send(f"✅ Suno 開始生成中，task_id: {task_id}")
+        await ctx.send(f"✅ 音樂網址:\n{front_url}")
+        await ctx.send("📌 如果連結點進去顯示錯誤，請再稍等一下，Suno 正在火速製作音樂🚀")
 
     except Exception as e:
         await ctx.send(f"❌ 呼叫 Flask 失敗: {e}")
@@ -132,9 +124,9 @@ async def history(ctx):
         if len(msg) > 1900:
             chunks = [msg[i:i+1900] for i in range(0, len(msg), 1900)]
             for chunk in chunks:
-                await ctx.send(f"📜 你的紀錄:\n{chunk}", suppress_embeds=True)
+                await ctx.send(f"📜 你的紀錄(最新的 20 筆):\n{chunk}", suppress_embeds=True)
         else:
-            await ctx.send(f"📜 你的紀錄:\n{msg}", suppress_embeds=True)
+            await ctx.send(f"📜 你的紀錄(最新的 20 筆):\n{msg}", suppress_embeds=True)
 
     except Exception as e:
         await ctx.send(f"❌ 查詢 DB 失敗: {e}")
