@@ -549,7 +549,7 @@ echo ""
 print_header "Step 5: Creating Jenkins CI Job (flask-ci)"
 
 print_info "What is the CI (Continuous Integration) job?"
-print_explain "Automatically runs when code is pushed (any branch)"
+print_explain "Automatically runs when code is pushed to 'Jeffery' branch"
 print_explain "Pipeline stages:"
 print_explain "  1. Checkout: Clone repository from GitHub"
 print_explain "  2. Setup: Install Python dependencies"
@@ -561,7 +561,7 @@ echo ""
 print_info "Job configuration details:"
 print_explain "• Job type: Pipeline (flow-definition)"
 print_explain "• Pipeline definition: From SCM (jenkins-pipeline-setting/Jenkinsfile-CI in Git)"
-print_explain "• Trigger: GitHub push (any branch)"
+print_explain "• Trigger: GitHub push to 'Jeffery' branch"
 print_explain "• Parameter: BACKEND_DIR (choose demo-backend or backend)"
 echo ""
 
@@ -609,7 +609,7 @@ cat > /tmp/flask-ci-config.xml << 'CI_CONFIG_EOF'
       </userRemoteConfigs>
       <branches>
         <hudson.plugins.git.BranchSpec>
-          <name>**</name>
+          <name>*/Jeffery</name>
         </hudson.plugins.git.BranchSpec>
       </branches>
       <doGenerateSubmoduleConfigurations>false</doGenerateSubmoduleConfigurations>
@@ -700,7 +700,7 @@ echo ""
 print_info "Job configuration details:"
 print_explain "• Job type: Pipeline (flow-definition)"
 print_explain "• Pipeline definition: From SCM (jenkins-pipeline-setting/Jenkinsfile-CD in Git)"
-print_explain "• Trigger: Manual (run when you are ready to deploy; works from any branch)"
+print_explain "• Trigger: Manual (run when you are ready to deploy)"
 print_explain "• Parameters:"
 print_explain "  - BACKEND_DIR: Choose which backend to deploy"
 print_explain "  - IMAGE_TAG: Specific ECR image tag (or auto-detect latest)"
@@ -748,7 +748,7 @@ cat > /tmp/flask-cd-config.xml << 'CD_CONFIG_EOF'
       </userRemoteConfigs>
       <branches>
         <hudson.plugins.git.BranchSpec>
-          <name>**</name>
+          <name>*/main</name>
         </hudson.plugins.git.BranchSpec>
       </branches>
       <doGenerateSubmoduleConfigurations>false</doGenerateSubmoduleConfigurations>
@@ -764,7 +764,7 @@ cat > /tmp/flask-cd-config.xml << 'CD_CONFIG_EOF'
 CD_CONFIG_EOF
 
 print_info "XML configuration differences from CI job:"
-print_explain "• Branch: any (manual deploy irrespective of branch)"
+print_explain "• Branch: */main (not */Jeffery) - production branch"
 print_explain "• scriptPath: jenkins-pipeline-setting/Jenkinsfile-CD (not Jenkinsfile-CI)"
 print_explain "• Extra parameter: IMAGE_TAG (allows deploying specific versions)"
 echo ""
