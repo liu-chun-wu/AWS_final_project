@@ -689,7 +689,7 @@ echo ""
 print_header "Step 6: Creating Jenkins CD Job (flask-cd)"
 
 print_info "What is the CD (Continuous Deployment) job?"
-print_explain "Automatically deploys to AWS Lambda when code is pushed to 'main' branch"
+print_explain "Automatically deploys to AWS Lambda when code is pushed to 'Jeffery' branch (manual trigger)"
 print_explain "Pipeline stages:"
 print_explain "  1. Checkout: Clone repository from GitHub"
 print_explain "  2. Validate: Check SAM template syntax"
@@ -700,7 +700,7 @@ echo ""
 print_info "Job configuration details:"
 print_explain "• Job type: Pipeline (flow-definition)"
 print_explain "• Pipeline definition: From SCM (jenkins-pipeline-setting/Jenkinsfile-CD in Git)"
-print_explain "• Trigger: Manual (run when you are ready to deploy)"
+print_explain "• Trigger: Manual (run when you are ready to deploy from Jeffery)"
 print_explain "• Parameters:"
 print_explain "  - BACKEND_DIR: Choose which backend to deploy"
 print_explain "  - IMAGE_TAG: Specific ECR image tag (or auto-detect latest)"
@@ -712,7 +712,7 @@ CD_JOB_NAME="flask-cd"
 cat > /tmp/flask-cd-config.xml << 'CD_CONFIG_EOF'
 <?xml version='1.1' encoding='UTF-8'?>
 <flow-definition plugin="workflow-job@2.40">
-  <description>Flask CD Pipeline - Deploys to AWS Lambda from main branch</description>
+  <description>Flask CD Pipeline - Deploys to AWS Lambda from Jeffery branch</description>
   <keepDependencies>false</keepDependencies>
   <properties>
     <hudson.model.ParametersDefinitionProperty>
@@ -897,9 +897,9 @@ echo "     • Pipeline: jenkins-pipeline-setting/Jenkinsfile-CI (version contro
 echo "     • Purpose: Test → Build → Push Docker image to ECR"
 echo "     • Parameter: BACKEND_DIR (demo-backend or backend)"
 echo ""
-echo "  2. CD Job (main branch):"
+echo "  2. CD Job (Jeffery branch):"
 echo "     URL: $JENKINS_URL/job/$CD_JOB_NAME/"
-echo "     • Triggers: Git push to main branch (via GitHub webhook)"
+echo "     • Triggers: Git push to Jeffery branch (via GitHub webhook)"
 echo "     • Pipeline: jenkins-pipeline-setting/Jenkinsfile-CD (version controlled in Git)"
 echo "     • Purpose: Validate → Deploy → Verify Lambda deployment"
 echo "     • Parameters: BACKEND_DIR, IMAGE_TAG (optional, auto-detects latest)"
