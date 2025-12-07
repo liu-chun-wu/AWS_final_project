@@ -78,20 +78,37 @@ pipeline {
                     } else {
                         echo "No IMAGE_TAG parameter provided. Auto-detecting latest image from ECR..."
                         sh '''
+                            set +e
+                            # Ensure repository exists (idempotent)
+                            aws ecr describe-repositories \
+                                --repository-name ${IMAGE_NAME} \
+                                --region ${AWS_REGION} >/dev/null 2>&1 || {
+                                  echo "ECR repo '${IMAGE_NAME}' not found. Creating..."
+                                  aws ecr create-repository \
+                                    --repository-name ${IMAGE_NAME} \
+                                    --image-scanning-configuration scanOnPush=true \
+                                    --region ${AWS_REGION}
+                                }
+
+                            # Fetch newest tag by push time
                             IMAGE_TAG=$(aws ecr describe-images \
                                 --repository-name ${IMAGE_NAME} \
                                 --region ${AWS_REGION} \
                                 --query 'sort_by(imageDetails,&imagePushedAt)[-1].imageTags[0]' \
                                 --output text 2>/dev/null)
 
+                            STATUS=$?
+                            if [ $STATUS -ne 0 ]; then
+                                echo "❌ AWS CLI error while describing images"
+                                exit $STATUS
+                            fi
+
                             if [ -z "$IMAGE_TAG" ] || [ "$IMAGE_TAG" = "None" ]; then
                                 echo "❌ No images found in ECR repository: ${IMAGE_NAME}"
                                 echo ""
-                                echo "You must build and push an image first:"
-                                echo "  Option 1: Run CI pipeline (builds locally, doesn't push)"
-                                echo "  Option 2: Run manual build script:"
-                                echo "    ./scripts/jenkins/20-ci-build-and-push.sh --demo"
-                                echo ""
+                                echo "Push an image first, e.g.:"
+                                echo "  ./scripts/jenkins/20-ci-build-and-push.sh --demo"
+                                echo "or run CI to publish one."
                                 exit 1
                             fi
 
