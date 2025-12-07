@@ -79,7 +79,7 @@
 # • Jenkins EC2 instance running (from 41-setup-jenkins-ec2.sh)
 # • Jenkins initial setup wizard completed
 # • Admin user created in Jenkins
-# • GitHub repository with ci/Jenkinsfile-CI and ci/Jenkinsfile-CD
+# • GitHub repository with jenkins-pipeline-setting/Jenkinsfile-CI and Jenkinsfile-CD
 # • jq installed (JSON parsing)
 # • curl installed (HTTP requests)
 #
@@ -560,7 +560,7 @@ echo ""
 
 print_info "Job configuration details:"
 print_explain "• Job type: Pipeline (flow-definition)"
-print_explain "• Pipeline definition: From SCM (ci/Jenkinsfile-CI in Git)"
+print_explain "• Pipeline definition: From SCM (jenkins-pipeline-setting/Jenkinsfile-CI in Git)"
 print_explain "• Trigger: GitHub push to 'Jeffery' branch"
 print_explain "• Parameter: BACKEND_DIR (choose demo-backend or backend)"
 echo ""
@@ -616,7 +616,7 @@ cat > /tmp/flask-ci-config.xml << 'CI_CONFIG_EOF'
       <submoduleCfg class="list"/>
       <extensions/>
     </scm>
-    <scriptPath>ci/Jenkinsfile-CI</scriptPath>
+    <scriptPath>jenkins-pipeline-setting/Jenkinsfile-CI</scriptPath>
     <lightweight>true</lightweight>
   </definition>
   <triggers/>
@@ -629,7 +629,7 @@ print_explain "<flow-definition>: Pipeline job type"
 print_explain "<hudson.model.ChoiceParameterDefinition>: Dropdown parameter (BACKEND_DIR)"
 print_explain "<GitHubPushTrigger>: Auto-trigger on GitHub push events"
 print_explain "<CpsScmFlowDefinition>: Pipeline code from SCM (Git)"
-print_explain "<scriptPath>ci/Jenkinsfile-CI: Location of Jenkinsfile in repository"
+print_explain "<scriptPath>jenkins-pipeline-setting/Jenkinsfile-CI: Location of Jenkinsfile in repository"
 print_explain "<lightweight>true: Fast checkout (no full clone for Jenkinsfile)"
 echo ""
 
@@ -699,7 +699,7 @@ echo ""
 
 print_info "Job configuration details:"
 print_explain "• Job type: Pipeline (flow-definition)"
-print_explain "• Pipeline definition: From SCM (ci/Jenkinsfile-CD in Git)"
+print_explain "• Pipeline definition: From SCM (jenkins-pipeline-setting/Jenkinsfile-CD in Git)"
 print_explain "• Trigger: Manual (run when you are ready to deploy)"
 print_explain "• Parameters:"
 print_explain "  - BACKEND_DIR: Choose which backend to deploy"
@@ -755,7 +755,7 @@ cat > /tmp/flask-cd-config.xml << 'CD_CONFIG_EOF'
       <submoduleCfg class="list"/>
       <extensions/>
     </scm>
-    <scriptPath>ci/Jenkinsfile-CD</scriptPath>
+    <scriptPath>jenkins-pipeline-setting/Jenkinsfile-CD</scriptPath>
     <lightweight>true</lightweight>
   </definition>
   <triggers/>
@@ -765,7 +765,7 @@ CD_CONFIG_EOF
 
 print_info "XML configuration differences from CI job:"
 print_explain "• Branch: */main (not */Jeffery) - production branch"
-print_explain "• scriptPath: ci/Jenkinsfile-CD (not Jenkinsfile-CI)"
+print_explain "• scriptPath: jenkins-pipeline-setting/Jenkinsfile-CD (not Jenkinsfile-CI)"
 print_explain "• Extra parameter: IMAGE_TAG (allows deploying specific versions)"
 echo ""
 
@@ -893,14 +893,14 @@ echo ""
 echo "  1. CI Job (Jeffery branch):"
 echo "     URL: $JENKINS_URL/job/$CI_JOB_NAME/"
 echo "     • Triggers: Git push to Jeffery branch (via GitHub webhook)"
-echo "     • Pipeline: ci/Jenkinsfile-CI (version controlled in Git)"
+echo "     • Pipeline: jenkins-pipeline-setting/Jenkinsfile-CI (version controlled in Git)"
 echo "     • Purpose: Test → Build → Push Docker image to ECR"
 echo "     • Parameter: BACKEND_DIR (demo-backend or backend)"
 echo ""
 echo "  2. CD Job (main branch):"
 echo "     URL: $JENKINS_URL/job/$CD_JOB_NAME/"
 echo "     • Triggers: Git push to main branch (via GitHub webhook)"
-echo "     • Pipeline: ci/Jenkinsfile-CD (version controlled in Git)"
+echo "     • Pipeline: jenkins-pipeline-setting/Jenkinsfile-CD (version controlled in Git)"
 echo "     • Purpose: Validate → Deploy → Verify Lambda deployment"
 echo "     • Parameters: BACKEND_DIR, IMAGE_TAG (optional, auto-detects latest)"
 echo ""

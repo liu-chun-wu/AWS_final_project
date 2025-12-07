@@ -514,8 +514,8 @@ display_summary() {
     print_header "Next Phase: Phase 4 - Jenkinsfile Preparation"
 
     print_info "Now that manual CI/CD works, create pipeline definitions:"
-    print_info "  1. Create ci/Jenkinsfile-CI (mirrors 20-ci-build-and-push.sh)"
-    print_info "  2. Create ci/Jenkinsfile-CD (mirrors 31-cd-deploy-sam.sh + this script)"
+    print_info "  1. Create jenkins-pipeline-setting/Jenkinsfile-CI (mirrors 20-ci-build-and-push.sh)"
+    print_info "  2. Create jenkins-pipeline-setting/Jenkinsfile-CD (mirrors 31-cd-deploy-sam.sh + this script)"
     print_info "  3. Commit Jenkinsfiles to Git"
     print_info "  4. Deploy Jenkins on EC2 (Phase 5)"
     print_info "  5. Test automated pipelines (Phase 6)"
