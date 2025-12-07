@@ -48,12 +48,12 @@ pipeline {
                     echo "SAM config: ${env.SAM_CONFIG}"
                     echo ""
 
-                    if (!branchName.contains('main')) {
+                    if (!branchName.contains('Jeffery')) {
                         currentBuild.result = 'NOT_BUILT'
-                        error("❌ This CD pipeline is designed for the main branch only!\n" +
+                        error("❌ This CD pipeline is designed for the Jeffery branch only!\n" +
                               "   Current branch: ${branchName}\n" +
-                              "   Expected branch: main\n\n" +
-                              "   Production deployments should only happen from main.\n" +
+                              "   Expected branch: Jeffery\n\n" +
+                              "   Production deployments should only happen from Jeffery.\n" +
                               "   For development/testing, use Jenkinsfile-CI on Jeffery branch.")
                     }
 
@@ -342,7 +342,7 @@ pipeline {
                 echo 'Common issues and solutions:'
                 echo ''
                 echo '  1. Branch validation failed:'
-                echo '     - This pipeline only runs on main branch'
+                echo '     - This pipeline only runs on Jeffery branch'
                 echo '     - For development, use Jenkinsfile-CI on Jeffery branch'
                 echo '     - Check current branch: git branch'
                 echo ''
