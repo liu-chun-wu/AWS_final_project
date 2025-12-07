@@ -393,7 +393,8 @@ echo ""
 # 2>/dev/null: Suppress error messages (handled by || echo "")
 # | jq -r '.crumb': Extract 'crumb' field from JSON response
 # || echo "": If command fails, return empty string
-CRUMB=$(curl -s -u "$JENKINS_USER:$JENKINS_PASSWORD" \
+COOKIE_JAR="$(mktemp)"
+CRUMB=$(curl -s -c "$COOKIE_JAR" -u "$JENKINS_USER:$JENKINS_PASSWORD" \
     "$JENKINS_URL/crumbIssuer/api/json" 2>/dev/null | jq -r '.crumb' || echo "")
 
 if [ -z "$CRUMB" ] || [ "$CRUMB" == "null" ]; then
@@ -470,7 +471,7 @@ echo ""
 # depth=1: Include plugin details (not just names)
 # jq -r '.plugins[].shortName': Extract 'shortName' field from each plugin
 # 2>/dev/null || echo "": Handle errors gracefully
-INSTALLED_PLUGINS=$(curl -s -u "$JENKINS_USER:$JENKINS_PASSWORD" \
+INSTALLED_PLUGINS=$(curl -s -b "$COOKIE_JAR" -u "$JENKINS_USER:$JENKINS_PASSWORD" \
     "$JENKINS_URL/pluginManager/api/json?depth=1" | \
     jq -r '.plugins[].shortName' 2>/dev/null || echo "")
 
@@ -512,7 +513,7 @@ if [ ${#PLUGINS_TO_INSTALL[@]} -gt 0 ]; then
     # -d "$PLUGIN_INSTALL_XML": XML payload with plugin list
     # /pluginManager/installNecessaryPlugins: Jenkins API endpoint
     # > /dev/null: Discard response body (we don't need it)
-    curl -s -X POST -u "$JENKINS_USER:$JENKINS_PASSWORD" \
+    curl -s --fail -X POST -b "$COOKIE_JAR" -u "$JENKINS_USER:$JENKINS_PASSWORD" \
         -H "Content-Type: text/xml" \
         -H "Jenkins-Crumb: $CRUMB" \
         -d "$PLUGIN_INSTALL_XML" \
@@ -638,7 +639,8 @@ rm -f /tmp/flask-ci-config.xml.bak
 
 # Check if job already exists
 # Explanation: GET /job/{name}/api/json returns 200 if job exists, 404 if not
-if curl -s -u "$JENKINS_USER:$JENKINS_PASSWORD" "$JENKINS_URL/job/$CI_JOB_NAME/api/json" > /dev/null 2>&1; then
+CI_JOB_STATUS=$(curl -s -o /dev/null -w "%{http_code}" -b "$COOKIE_JAR" -u "$JENKINS_USER:$JENKINS_PASSWORD" "$JENKINS_URL/job/$CI_JOB_NAME/api/json")
+if [ "$CI_JOB_STATUS" = "200" ]; then
     print_warning "Job '$CI_JOB_NAME' already exists, updating configuration..."
     echo ""
     print_explain "API call: POST /job/$CI_JOB_NAME/config.xml"
@@ -652,7 +654,7 @@ if curl -s -u "$JENKINS_USER:$JENKINS_PASSWORD" "$JENKINS_URL/job/$CI_JOB_NAME/a
     # -H "Jenkins-Crumb: $CRUMB": CSRF protection
     # --data-binary @/tmp/flask-ci-config.xml: Read XML from file (preserve formatting)
     # /job/$CI_JOB_NAME/config.xml: Endpoint to update job config
-    curl -s -X POST -u "$JENKINS_USER:$JENKINS_PASSWORD" \
+    curl -s --fail -X POST -b "$COOKIE_JAR" -u "$JENKINS_USER:$JENKINS_PASSWORD" \
         -H "Content-Type: application/xml" \
         -H "Jenkins-Crumb: $CRUMB" \
         --data-binary @/tmp/flask-ci-config.xml \
@@ -669,7 +671,7 @@ else
     # Explanation:
     # /createItem?name=$CI_JOB_NAME: Endpoint to create job with specified name
     # --data-binary @/tmp/flask-ci-config.xml: XML configuration from file
-    curl -s -X POST -u "$JENKINS_USER:$JENKINS_PASSWORD" \
+    curl -s --fail -X POST -b "$COOKIE_JAR" -u "$JENKINS_USER:$JENKINS_PASSWORD" \
         -H "Content-Type: application/xml" \
         -H "Jenkins-Crumb: $CRUMB" \
         --data-binary @/tmp/flask-ci-config.xml \
@@ -772,9 +774,10 @@ sed -i.bak "s|GITHUB_REPO_PLACEHOLDER|$GITHUB_REPO|g" /tmp/flask-cd-config.xml
 rm -f /tmp/flask-cd-config.xml.bak
 
 # Check if job already exists
-if curl -s -u "$JENKINS_USER:$JENKINS_PASSWORD" "$JENKINS_URL/job/$CD_JOB_NAME/api/json" > /dev/null 2>&1; then
+CD_JOB_STATUS=$(curl -s -o /dev/null -w "%{http_code}" -b "$COOKIE_JAR" -u "$JENKINS_USER:$JENKINS_PASSWORD" "$JENKINS_URL/job/$CD_JOB_NAME/api/json")
+if [ "$CD_JOB_STATUS" = "200" ]; then
     print_warning "Job '$CD_JOB_NAME' already exists, updating configuration..."
-    curl -s -X POST -u "$JENKINS_USER:$JENKINS_PASSWORD" \
+    curl -s --fail -X POST -b "$COOKIE_JAR" -u "$JENKINS_USER:$JENKINS_PASSWORD" \
         -H "Content-Type: application/xml" \
         -H "Jenkins-Crumb: $CRUMB" \
         --data-binary @/tmp/flask-cd-config.xml \
@@ -782,7 +785,7 @@ if curl -s -u "$JENKINS_USER:$JENKINS_PASSWORD" "$JENKINS_URL/job/$CD_JOB_NAME/a
     print_success "CD job updated successfully"
 else
     print_info "Creating new job '$CD_JOB_NAME'..."
-    curl -s -X POST -u "$JENKINS_USER:$JENKINS_PASSWORD" \
+    curl -s --fail -X POST -b "$COOKIE_JAR" -u "$JENKINS_USER:$JENKINS_PASSWORD" \
         -H "Content-Type: application/xml" \
         -H "Jenkins-Crumb: $CRUMB" \
         --data-binary @/tmp/flask-cd-config.xml \
@@ -794,7 +797,7 @@ echo "   Job URL: $JENKINS_URL/job/$CD_JOB_NAME/"
 echo ""
 
 # Clean up temporary files
-rm -f /tmp/flask-ci-config.xml /tmp/flask-cd-config.xml
+rm -f /tmp/flask-ci-config.xml /tmp/flask-cd-config.xml "$COOKIE_JAR"
 
 ################################################################################
 # STEP 7: GitHub Webhook Configuration Instructions
@@ -1017,4 +1020,3 @@ echo ""
 print_header "Configuration Complete!"
 print_success "Jenkins CI/CD pipelines are ready for testing123"
 echo ""
-
