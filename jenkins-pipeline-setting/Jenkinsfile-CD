@@ -35,38 +35,6 @@ pipeline {
             }
         }
 
-        stage('Validate Main Branch') {
-            steps {
-                script {
-                    def branchName = env.GIT_BRANCH ?: 'unknown'
-                    echo "============================================"
-                    echo "CD Pipeline - Continuous Deployment"
-                    echo "============================================"
-                    echo "Current branch: ${branchName}"
-                    echo "Backend directory: ${env.BACKEND}"
-                    echo "Stack name: ${env.STACK_NAME}"
-                    echo "SAM config: ${env.SAM_CONFIG}"
-                    echo ""
-
-                    if (!branchName.contains('main')) {
-                        currentBuild.result = 'NOT_BUILT'
-                        error("❌ This CD pipeline is designed for the main branch only!\n" +
-                              "   Current branch: ${branchName}\n" +
-                              "   Expected branch: main\n\n" +
-                              "   Production deployments should only happen from main.\n" +
-                              "   For development/testing, use Jenkinsfile-CI on Jeffery branch.")
-                    }
-
-                    echo "✅ Main branch validated"
-                    echo "   Pipeline mode: CD (Continuous Deployment)"
-                    echo "   - Will run: ECR login, Image push, SAM deploy, Verification"
-                    echo "   - Deploys to: AWS Lambda + API Gateway"
-                    echo "   Purpose: Production deployment from validated code"
-                    echo "============================================"
-                }
-            }
-        }
-
         stage('Auto-detect or Validate Image Tag') {
             steps {
                 script {

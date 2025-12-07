@@ -24,35 +24,6 @@ pipeline {
             }
         }
 
-        stage('Validate Jeffery Branch') {
-            steps {
-                script {
-                    def branchName = env.GIT_BRANCH ?: 'unknown'
-                    echo "============================================"
-                    echo "CI Pipeline - Continuous Integration"
-                    echo "============================================"
-                    echo "Current branch: ${branchName}"
-                    echo "Backend directory: ${env.BACKEND}"
-                    echo ""
-
-                    if (!branchName.contains('Jeffery')) {
-                        currentBuild.result = 'NOT_BUILT'
-                        error("❌ This CI pipeline is designed for the Jeffery branch only!\n" +
-                              "   Current branch: ${branchName}\n" +
-                              "   Expected branch: Jeffery\n\n" +
-                              "   For main branch deployment, use Jenkinsfile-CD instead.")
-                    }
-
-                    echo "✅ Jeffery branch validated"
-                    echo "   Pipeline mode: CI ONLY (Continuous Integration)"
-                    echo "   - Will run: Checkout, Setup, Install, Test, Build"
-                    echo "   - Will skip: AWS deployment (no ECR push, no Lambda deploy)"
-                    echo "   Purpose: Fast feedback for development"
-                    echo "============================================"
-                }
-            }
-        }
-
         stage('Setup Python Environment') {
             steps {
                 echo 'Setting up Python virtual environment...'
