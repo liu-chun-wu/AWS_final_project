@@ -78,13 +78,26 @@ pipeline {
                     } else {
                         echo "No IMAGE_TAG parameter provided. Auto-detecting latest image from ECR..."
                         sh '''
-                            IMAGE_TAG=$(aws ecr describe-images \\
+                            AWS_BIN=aws
+                            # Fallback to dockerized AWS CLI if not installed on the node
+                            if ! command -v aws >/dev/null 2>&1; then
+                                echo "AWS CLI not found. Using dockerized amazon/aws-cli image..."
+                                AWS_BIN="docker run --rm \\
+                                  -e AWS_ACCESS_KEY_ID \\
+                                  -e AWS_SECRET_ACCESS_KEY \\
+                                  -e AWS_SESSION_TOKEN \\
+                                  -e AWS_DEFAULT_REGION=${AWS_REGION} \\
+                                  -v $HOME/.aws:/root/.aws \\
+                                  amazon/aws-cli"
+                            fi
+
+                            IMAGE_TAG=$($AWS_BIN ecr describe-images \\
                                 --repository-name ${IMAGE_NAME} \\
                                 --region ${AWS_REGION} \\
                                 --query 'sort_by(imageDetails,&imagePushedAt)[-1].imageTags[0]' \\
                                 --output text 2>/dev/null)
 
-                            if [ -z "$IMAGE_TAG" ] || [ "$IMAGE_TAG" == "None" ]; then
+                            if [ -z "$IMAGE_TAG" ] || [ "$IMAGE_TAG" = "None" ]; then
                                 echo "❌ No images found in ECR repository: ${IMAGE_NAME}"
                                 echo ""
                                 echo "You must build and push an image first:"
@@ -98,7 +111,7 @@ pipeline {
                             echo "$IMAGE_TAG" > /tmp/detected_image_tag.txt
                             echo "✅ Auto-detected image tag: $IMAGE_TAG"
 
-                            PUSH_TIME=$(aws ecr describe-images \\
+                            PUSH_TIME=$($AWS_BIN ecr describe-images \\
                                 --repository-name ${IMAGE_NAME} \\
                                 --region ${AWS_REGION} \\
                                 --image-ids imageTag=$IMAGE_TAG \\
@@ -129,7 +142,19 @@ pipeline {
                 echo "AWS Region: ${AWS_REGION}"
                 echo ''
                 sh '''
-                    aws ecr get-login-password --region ${AWS_REGION} | \\
+                    AWS_BIN=aws
+                    if ! command -v aws >/dev/null 2>&1; then
+                        echo "AWS CLI not found. Using dockerized amazon/aws-cli image..."
+                        AWS_BIN="docker run --rm \\
+                          -e AWS_ACCESS_KEY_ID \\
+                          -e AWS_SECRET_ACCESS_KEY \\
+                          -e AWS_SESSION_TOKEN \\
+                          -e AWS_DEFAULT_REGION=${AWS_REGION} \\
+                          -v $HOME/.aws:/root/.aws \\
+                          amazon/aws-cli"
+                    fi
+
+                    $AWS_BIN ecr get-login-password --region ${AWS_REGION} | \\
                     docker login --username AWS --password-stdin ${ECR_REGISTRY}
                     echo "✅ ECR authentication successful (valid for 12 hours)"
                 '''
