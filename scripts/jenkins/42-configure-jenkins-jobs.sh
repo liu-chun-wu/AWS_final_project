@@ -748,7 +748,7 @@ cat > /tmp/flask-cd-config.xml << 'CD_CONFIG_EOF'
       </userRemoteConfigs>
       <branches>
         <hudson.plugins.git.BranchSpec>
-          <name>*/main</name>
+          <name>*/Jeffery</name>
         </hudson.plugins.git.BranchSpec>
       </branches>
       <doGenerateSubmoduleConfigurations>false</doGenerateSubmoduleConfigurations>
