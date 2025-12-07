@@ -1015,5 +1015,6 @@ echo "  ./scripts/jenkins/42-configure-jenkins-jobs.sh $TARGET_FLAG --$ENVIRONME
 echo ""
 
 print_header "Configuration Complete!"
-print_success "Jenkins CI/CD pipelines are ready for testing"
+print_success "Jenkins CI/CD pipelines are ready for testing ."
 echo ""
+
