@@ -177,6 +177,8 @@ pipeline {
                     fi
                     ECR_REGISTRY="${ACCOUNT_ID}.dkr.ecr.${AWS_REGION}.amazonaws.com"
                     ECR_IMAGE="${ECR_REGISTRY}/${IMAGE_NAME}:${IMAGE_TAG}"
+                    ECR_IMAGE_LATEST="${ECR_REGISTRY}/${IMAGE_NAME}:latest"
+                    ECR_IMAGE_JENKINS="${ECR_REGISTRY}/${IMAGE_NAME}:jenkins-build"
 
                     # Ensure repo exists
                     aws ecr describe-repositories --repository-name ${IMAGE_NAME} --region ${AWS_REGION} >/dev/null 2>&1 || \
@@ -185,15 +187,16 @@ pipeline {
                     aws ecr get-login-password --region ${AWS_REGION} | docker login --username AWS --password-stdin ${ECR_REGISTRY}
 
                     docker tag ${IMAGE_NAME}:${IMAGE_TAG} ${ECR_IMAGE}
-                    docker push ${ECR_IMAGE}
+                    docker tag ${IMAGE_NAME}:${IMAGE_TAG} ${ECR_IMAGE_LATEST}
+                    docker tag ${IMAGE_NAME}:${IMAGE_TAG} ${ECR_IMAGE_JENKINS}
 
-                    # Optional: push branch-latest tag
-                    BRANCH_TAG="$(echo ${GIT_BRANCH:-unknown} | tr '/' '-')-latest"
-                    docker tag ${IMAGE_NAME}:${IMAGE_TAG} ${ECR_REGISTRY}/${IMAGE_NAME}:${BRANCH_TAG}
-                    docker push ${ECR_REGISTRY}/${IMAGE_NAME}:${BRANCH_TAG}
+                    docker push ${ECR_IMAGE}
+                    docker push ${ECR_IMAGE_LATEST}
+                    docker push ${ECR_IMAGE_JENKINS}
 
                     echo "ECR_IMAGE=${ECR_IMAGE}" > push_vars.txt
-                    echo "BRANCH_LATEST_TAG=${BRANCH_TAG}" >> push_vars.txt
+                    echo "ECR_IMAGE_LATEST=${ECR_IMAGE_LATEST}" >> push_vars.txt
+                    echo "ECR_IMAGE_JENKINS=${ECR_IMAGE_JENKINS}" >> push_vars.txt
                   '''
                   script {
                     def varsFile = readFile('push_vars.txt').trim().split('\n')
@@ -202,7 +205,8 @@ pipeline {
                         env."${k}" = v
                     }
                     echo "Recorded ECR image: ${env.ECR_IMAGE}"
-                    echo "Branch latest tag: ${env.BRANCH_LATEST_TAG}"
+                    echo "Latest tag: ${env.ECR_IMAGE_LATEST}"
+                    echo "Jenkins tag: ${env.ECR_IMAGE_JENKINS}"
                   }
                 }
             }
@@ -219,6 +223,8 @@ pipeline {
                 echo "Backend: ${env.BACKEND}"
                 echo "Docker image: ${IMAGE_NAME}:${IMAGE_TAG}"
                 echo "ECR image: ${env.ECR_IMAGE ?: 'not pushed'}"
+                echo "ECR latest: ${env.ECR_IMAGE_LATEST ?: 'not pushed'}"
+                echo "ECR jenkins: ${env.ECR_IMAGE_JENKINS ?: 'not pushed'}"
                 echo ''
                 echo 'Results:'
                 echo '  ✓ All tests passed'
@@ -226,8 +232,9 @@ pipeline {
                 echo '  ✓ Image pushed to ECR'
                 echo ''
                 echo 'Next steps:'
-                echo '  1. Use IMAGE_TAG='${IMAGE_TAG}' in CD job (or auto-detect latest).'
+                echo "  1. Use IMAGE_TAG=${IMAGE_TAG} in CD job (or auto-detect latest)."
                 echo "  2. ECR image: ${env.ECR_IMAGE}"
+                echo "  3. Alternate tags: latest, jenkins-build"
                 echo '============================================'
             }
         }
