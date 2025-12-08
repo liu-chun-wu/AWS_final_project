@@ -21,8 +21,6 @@ pipeline {
         // SAM config file selection
         SAM_CONFIG = "${params.BACKEND_DIR == 'backend' ? 'samconfig-prod.toml' : 'samconfig-demo.toml'}"
         STACK_NAME = "${params.BACKEND_DIR == 'backend' ? 'flask-prod-backend' : 'flask-demo-backend'}"
-        // ensure aws installed path is visible
-        PATH = "/usr/local/bin:/usr/bin:/bin"
     }
 
     stages {
@@ -58,6 +56,26 @@ pipeline {
                     echo "   Pipeline mode: CD (Continuous Deployment)"
                     echo "   - Will run: ECR login, Image push, SAM deploy, Verification"
                     echo "============================================"
+                }
+            }
+        }
+
+        stage('Ensure AWS CLI') {
+            steps {
+                sh '''
+                    set -e
+                    export PATH="$WORKSPACE/.aws-cli/bin:/usr/local/bin:/usr/bin:/bin"
+                    if ! command -v aws >/dev/null 2>&1; then
+                        ARCH=$(uname -m)
+                        echo "AWS CLI not found; installing for ${ARCH}..."
+                        curl -s "https://awscli.amazonaws.com/awscli-exe-linux-${ARCH}.zip" -o /tmp/awscliv2.zip
+                        unzip -qo /tmp/awscliv2.zip -d /tmp
+                        /tmp/aws/install --bin-dir "$WORKSPACE/.aws-cli/bin" --install-dir "$WORKSPACE/.aws-cli" --update
+                    fi
+                    aws --version
+                '''
+                script {
+                    env.PATH = "${env.WORKSPACE}/.aws-cli/bin:/usr/local/bin:/usr/bin:/bin"
                 }
             }
         }
