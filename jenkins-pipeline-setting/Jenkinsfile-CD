@@ -345,7 +345,7 @@ pipeline {
                         echo "HTTP Status: $HTTP_STATUS"
                         echo "Response: $RESPONSE_BODY"
 
-                        if [ "$HTTP_STATUS" == "200" ]; then
+                        if [ "$HTTP_STATUS" = "200" ]; then
                             echo "✅ Health endpoint working"
 
                             if echo "$RESPONSE_BODY" | grep -q "status.*ok"; then
@@ -379,7 +379,7 @@ pipeline {
                         echo "Request: $TEST_DATA"
                         echo "Response: $RESPONSE_BODY"
 
-                        if [ "$HTTP_STATUS" == "200" ]; then
+                        if [ "$HTTP_STATUS" = "200" ]; then
                             echo "✅ Echo endpoint working"
 
                             if echo "$RESPONSE_BODY" | grep -q "Jenkins CD verification"; then
