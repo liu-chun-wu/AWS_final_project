@@ -86,7 +86,7 @@
 # Cost Estimate:
 # --------------
 # • This script itself: $0 (only API calls, no new resources)
-# • EC2 instance cost: Handled by script 40 (t2.small ~$0.023/hr)
+# • EC2 instance cost: Handled by script 40 (default t3.medium ~ $0.0416/hr)
 # • Total running cost: ~$0.55/day if Jenkins left running 24/7
 # • Recommendation: Stop EC2 when not in use (script 94-stop-jenkins-ec2.sh)
 #

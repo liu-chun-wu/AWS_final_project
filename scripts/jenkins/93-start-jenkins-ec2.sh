@@ -21,7 +21,7 @@
 # 4. EBS volumes reattach automatically (all data preserved)
 # 5. User Data script does NOT re-run (only runs on first launch)
 # 6. Jenkins service auto-starts (configured via systemd)
-# 7. Billing starts: ~$0.023/hour for t2.small
+# 7. Billing starts: ~$0.0416/hour for t3.medium (default)
 #
 # Why does the public IP change?
 # -------------------------------
@@ -554,7 +554,7 @@ echo ""
 
 print_header "Cost Information"
 
-print_info "EC2 t2.small pricing:"
+print_info "EC2 t3.medium pricing:"
 print_explain "• Hourly: \$0.023/hour (while running)"
 print_explain "• Daily: ~\$0.55/day (if running 24/7)"
 print_explain "• Monthly: ~\$16.56/month (if running 24/7)"

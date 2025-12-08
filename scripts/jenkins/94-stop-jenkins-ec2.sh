@@ -43,14 +43,14 @@
 #
 # Cost savings with stop:
 # -----------------------
-# • EC2 t2.small: $0.023/hour → $0/hour (save $0.023/hour)
-# • Daily savings: ~$0.55/day ($16.56/month)
+# • EC2 t3.medium: ~$0.0416/hour → $0/hour (save ~$0.0416/hour)
+# • Daily savings: ~$1.00/day (~$30/month if 24/7)
 # • EBS 20GB volume: ~$2/month (continues while stopped)
 #
 # Example cost scenarios:
-# • 24/7 running: $16.56/month EC2 + $2 EBS = $18.56/month
-# • 8 hours/day (stop at night): $5.52/month EC2 + $2 EBS = $7.52/month
-# • Always stopped: $0/month EC2 + $2 EBS = $2/month
+# • 24/7 running: ~$30/month EC2 + ~$2 EBS ≈ $32/month
+# • 8 hours/day (stop at night): ~$10/month EC2 + ~$2 EBS ≈ $12/month
+# • Always stopped: $0/month EC2 + ~$2 EBS ≈ $2/month
 #
 # What you'll learn in this script:
 # ----------------------------------

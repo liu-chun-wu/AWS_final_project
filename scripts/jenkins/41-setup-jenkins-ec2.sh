@@ -25,7 +25,7 @@
 # This script performs:
 # 1. Prerequisites validation (AWS CLI, credentials, key pairs)
 # 2. Security Group creation (firewall rules for ports 22, 8080, 443)
-# 3. EC2 instance launch (t2.small with Amazon Linux 2023)
+# 3. EC2 instance launch (t3.medium with Amazon Linux 2023 by default)
 # 4. User Data script execution (installs Jenkins, Docker, AWS tools)
 # 5. Jenkins initialization and password retrieval
 # 6. Instance information saved for other scripts
@@ -52,7 +52,7 @@
 # - Internet connectivity for package downloads
 #
 # Cost:
-# - EC2 t2.small: ~$0.023/hour = ~$17/month (24/7 running)
+# - EC2 t3.medium: ~$0.0416/hour = ~$30/month (24/7 running)
 # - EBS 20GB gp3: ~$2/month
 # - Data transfer: Minimal for CI/CD workloads
 # - Total: ~$19/month or ~$5-8/month if stopped when not in use
@@ -617,7 +617,7 @@ launch_instance() {
         echo ""
 
         print_explain "Parameters:"
-        print_explain "  • --instance-type t2.small: 1 vCPU, 2GB RAM, $0.023/hr"
+        print_explain "  • --instance-type t3.medium: 2 vCPU, 4GB RAM, ~$0.0416/hr (default)"
         print_explain "  • --block-device-mappings: 20GB gp3 SSD ($2/month)"
         print_explain "  • --user-data: Runs installation script on first boot"
         echo ""

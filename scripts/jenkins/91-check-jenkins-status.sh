@@ -34,7 +34,7 @@
 #    • Instance state (running/stopped/terminated)
 #    • Public IP address (changes when stopped/started!)
 #    • Private IP address (stays constant within VPC)
-#    • Instance type and specifications (t2.small)
+#    • Instance type and specifications (t3.medium default)
 #    • Availability zone (e.g., us-east-1a)
 #    • Launch time and uptime
 #
@@ -247,7 +247,7 @@ fi
 # '.State.Name': Current instance state (running, stopped, etc.)
 # '.PublicIpAddress // "N/A"': Public IP or "N/A" if not assigned
 # '.PrivateIpAddress // "N/A"': Private IP within VPC
-# '.InstanceType': Instance type (e.g., t2.small)
+# '.InstanceType': Instance type (e.g., t3.medium)
 # '.Placement.AvailabilityZone': Physical data center location
 # '.LaunchTime': ISO 8601 timestamp when instance started
 INSTANCE_STATE=$(echo "$INSTANCE_INFO" | jq -r '.State.Name')
@@ -283,7 +283,7 @@ esac
 
 echo ""
 echo "  Instance Type: $INSTANCE_TYPE"
-print_explain "→ t2.small: 1 vCPU, 2GB RAM, moderate network performance"
+print_explain "→ t3.medium: 2 vCPU, 4GB RAM, baseline performance (default)"
 echo ""
 
 echo "  Public IP: $CURRENT_PUBLIC_IP"
@@ -519,10 +519,10 @@ if [ "$INSTANCE_STATE" == "running" ]; then
 
     print_header "Cost Information"
 
-    print_info "EC2 Pricing for t2.small:"
-    print_explain "• Hourly rate: \$0.023/hour (when running)"
-    print_explain "• Daily cost (24/7): ~\$0.55/day"
-    print_explain "• Monthly cost (24/7): ~\$16.56/month"
+    print_info "EC2 Pricing for t3.medium (default):"
+    print_explain "• Hourly rate: ~\$0.0416/hour (when running)"
+    print_explain "• Daily cost (24/7): ~\$1.00/day"
+    print_explain "• Monthly cost (24/7): ~\$30/month"
     print_explain "• When stopped: \$0/hour EC2, but EBS storage still charged"
     echo ""
 
@@ -539,7 +539,7 @@ if [ "$INSTANCE_STATE" == "running" ]; then
         RUNNING_HOURS=$(( RUNNING_SECONDS / 3600 ))
         RUNNING_MINUTES=$(( (RUNNING_SECONDS % 3600) / 60 ))
 
-        # Calculate estimated cost (t2.small = $0.023/hour)
+        # Calculate estimated cost (t3.medium ≈ $0.0416/hour)
         RUNNING_COST=$(echo "scale=4; $RUNNING_SECONDS / 3600 * 0.023" | bc)
 
         echo "  Running time: ${RUNNING_HOURS}h ${RUNNING_MINUTES}m"
