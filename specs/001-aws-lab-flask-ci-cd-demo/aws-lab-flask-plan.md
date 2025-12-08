@@ -60,7 +60,7 @@ aws-lab-flask-ci-cd/
 │   ├── requirements.txt        # Flask, gunicorn, pytest
 │   ├── Dockerfile              # Lambda-compatible container
 │   └── .dockerignore
-├── ci/
+├── jenkins-pipeline-setting/
 │   ├── Jenkinsfile-CI          # CI job: Test → Build → Push to ECR
 │   └── Jenkinsfile-CD          # CD job: Deploy SAM → Verify
 ├── aws/
@@ -78,11 +78,12 @@ aws-lab-flask-ci-cd/
 │       ├── 30-cd-validate-sam.sh        # CD: Validate SAM template
 │       ├── 31-cd-deploy-sam.sh          # CD: Deploy to Lambda
 │       ├── 32-cd-verify-deployment.sh   # CD: Test endpoints
-│       ├── 41-setup-jenkins-ec2.sh      # Setup: Launch Jenkins on EC2
-│       ├── 42-configure-jenkins-jobs.sh # Setup: Create CI/CD jobs
+│       ├── 41-setup-jenkins-ec2.sh      # Setup: Launch Jenkins on EC2 (default t3.medium)
+│       ├── 42-configure-jenkins-jobs.sh # Setup: Create CI/CD jobs (plugin install + retries)
 │       ├── 91-check-jenkins-status.sh   # Utility: Check Jenkins EC2
 │       ├── 93-start-jenkins-ec2.sh      # Utility: Start EC2
-│       └── 94-stop-jenkins-ec2.sh       # Utility: Stop EC2
+│       ├── 94-stop-jenkins-ec2.sh       # Utility: Stop EC2
+│       └── 99-cleanup-all.sh            # Utility: Tear down stacks + ECR
 ├── docs/
 │   ├── overview.md             # Architecture summary + branch strategy
 │   ├── scripts.md              # Concise script catalog
@@ -154,13 +155,13 @@ Test each step manually BEFORE automating with Jenkins. This reduces risk, speed
 - Validate: Local Jenkins pipelines complete, Lambda responds via API Gateway
 
 **Phase 5: Jenkins EC2 Deployment** *(Deploy AFTER Local Jenkins Proves Pipelines)*
-- Provision EC2 instance (t2.small, Amazon Linux 2023)
+- Provision EC2 instance (t3.medium default, Amazon Linux 2023; override with INSTANCE_TYPE)
 - Install: Java 17, Jenkins LTS, Docker, AWS CLI v2, SAM CLI, Git
 - Configure IAM (use existing LabRole via instance profile)
 - Setup security group (SSH 22, Jenkins 8080, HTTPS 443)
 - Create Jenkins jobs pointing to Git Jenkinsfiles:
-  - `flask-ci` → uses `ci/Jenkinsfile-CI`
-  - `flask-cd` → uses `ci/Jenkinsfile-CD`
+  - `flask-ci` → uses `jenkins-pipeline-setting/Jenkinsfile-CI`
+  - `flask-cd` → uses `jenkins-pipeline-setting/Jenkinsfile-CD`
 - **Rationale**: Deploy Jenkins ONCE with complete configuration
 - **Benefit**: No deploy → debug → modify cycles
 - Validate: Jenkins accessible, jobs configured from Git
@@ -331,7 +332,7 @@ During this project, we hit IAM permission errors. Manual validation found the i
 **AWS Resources Monthly Costs:**
 
 ```
-EC2 Jenkins Instance (t2.small):
+EC2 Jenkins Instance (t3.medium by default):
   - Running 24/7:    ~$15/month
   - Running 8hr/day: ~$5/month
   - Stopped:         ~$3/month (EBS only)

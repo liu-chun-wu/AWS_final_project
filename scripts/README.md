@@ -21,7 +21,7 @@ These scripts never talk to AWS; they live entirely on your workstation.
 | `30-cd-validate-sam.sh` | Runs SAM validation, checks LabRole, and ensures the template is ready to deploy. |
 | `31-cd-deploy-sam.sh` | Deploys the specified image tag to Lambda/API Gateway via SAM (`--demo` or `--prod`). |
 | `32-cd-verify-deployment.sh` | Calls `/health` and `/echo` on the deployed API for quick verification. |
-| `41-setup-jenkins-ec2.sh` | Provisions Jenkins on EC2 (t2.small), installs dependencies, and prints the admin password. |
+| `41-setup-jenkins-ec2.sh` | Provisions Jenkins on EC2 (default t3.medium), installs dependencies, and prints the admin password. |
 | `42-configure-jenkins-jobs.sh` | Uses Jenkins CLI/API to create `flask-ci` and `flask-cd` jobs pointing to the Jenkinsfiles in Git (`--local` or `--ec2`). |
 | `91-check-jenkins-status.sh` | Shows EC2 Jenkins status, Blue Ocean URLs, and recent builds. |
 | `93-start-jenkins-ec2.sh` / `94-stop-jenkins-ec2.sh` | Start or stop the EC2 instance to control cost; update the GitHub webhook after a restart. |

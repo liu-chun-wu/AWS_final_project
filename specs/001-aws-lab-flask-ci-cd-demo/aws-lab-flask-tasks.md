@@ -16,7 +16,7 @@ description: "Task list for AWS Learner Lab Flask CI/CD demo"
 
 - Backend source lives under: `backend/src/`
 - Tests live under: `backend/tests/`
-- CI pipeline configuration lives under: `ci/`
+- CI pipeline configuration lives under: `jenkins-pipeline-setting/`
 
 ---
 
@@ -29,7 +29,7 @@ description: "Task list for AWS Learner Lab Flask CI/CD demo"
   - `backend/src/`
   - `backend/tests/unit/`
   - `backend/tests/integration/`
-  - `ci/`
+  - `jenkins-pipeline-setting/`
   - `specs/001-aws-lab-flask-ci-cd-demo/`
 
 - [ ] T002 [P] [ALL] Initialize Git repository and set remote to GitHub.
@@ -144,7 +144,7 @@ description: "Task list for AWS Learner Lab Flask CI/CD demo"
 ### Implementation for User Story 3
 
 - [ ] T022 [US3] Run Jenkins in Docker with a named volume and Docker socket mount.
-- [ ] T023 [US3] Create `ci/Jenkinsfile` with stages:
+- [ ] T023 [US3] Create `jenkins-pipeline-setting/Jenkinsfile` with stages:
 
   - `Checkout`
   - `Setup Python & dependencies`
@@ -152,7 +152,7 @@ description: "Task list for AWS Learner Lab Flask CI/CD demo"
   - `Run tests`
   - `Build Docker image`
 
-- [ ] T024 [P] [US3] Configure Jenkins job pointing to GitHub repository and using `ci/Jenkinsfile`.
+- [ ] T024 [P] [US3] Configure Jenkins job pointing to GitHub repository and using `jenkins-pipeline-setting/Jenkinsfile`.
 - [ ] T025 [US3] Document Jenkins setup steps (admin password, plugin installation, job creation) in `README.md` or separate doc.
 
 **Checkpoint**: Jenkins pipeline is reproducible from a fresh Jenkins container.
@@ -279,7 +279,7 @@ Parallel opportunities:
 **Purpose**: Define pipelines as code, then prove the exact Jenkins automation works on a developer workstation (still hitting AWS) before provisioning EC2.
 
 - [ ] T048 [P] Create Jenkinsfile-CI
-  - Implement: `ci/Jenkinsfile-CI`
+  - Implement: `jenkins-pipeline-setting/Jenkinsfile-CI`
   - Stages:
     1. Checkout code
     2. Determine backend type (Jeffery branch=demo, main branch=prod)
@@ -293,7 +293,7 @@ Parallel opportunities:
   - Environment variables: AWS_REGION, ECR_REPO, BACKEND_DIR
 
 - [ ] T049 [P] Create Jenkinsfile-CD
-  - Implement: `ci/Jenkinsfile-CD`
+  - Implement: `jenkins-pipeline-setting/Jenkinsfile-CD`
   - Parameters: IMAGE_TAG (required), BACKEND_TYPE (choice: demo-backend/prod-backend)
   - Stages:
     1. Validate image exists in ECR (`aws ecr describe-images`)
@@ -305,7 +305,7 @@ Parallel opportunities:
   - Environment variables: AWS_REGION, ECR_REPO, SAM_CONFIG
 
 - [ ] T050 Commit Jenkinsfiles to Git
-  - Add: `git add ci/Jenkinsfile-CI ci/Jenkinsfile-CD`
+  - Add: `git add jenkins-pipeline-setting/Jenkinsfile-CI jenkins-pipeline-setting/Jenkinsfile-CD`
   - Commit: `git commit -m "feat: add Jenkins CI/CD pipeline definitions"`
   - Push: `git push origin Jeffery`
   - Verify: Files visible in GitHub repository
@@ -353,7 +353,7 @@ Parallel opportunities:
   - Features:
     - Create security group (SSH 22, Jenkins 8080, HTTPS 443)
     - Create instance profile with LabRole
-    - Launch t2.small with Amazon Linux 2023
+    - Launch t3.medium with Amazon Linux 2023 (override via INSTANCE_TYPE if needed)
     - User Data installs: Java 17, Jenkins LTS, Docker, AWS CLI v2, SAM CLI, Git
     - Add jenkins user to docker group
     - Configure AWS CLI with instance role
@@ -367,8 +367,8 @@ Parallel opportunities:
 - [ ] T062 [P] Create Jenkins job configuration script
   - Implement: `scripts/jenkins/42-configure-jenkins-jobs.sh`
   - Use Jenkins CLI/REST to create:
-    - `flask-ci` → Pipeline from SCM → `ci/Jenkinsfile-CI`
-    - `flask-cd` → Pipeline from SCM → `ci/Jenkinsfile-CD`
+    - `flask-ci` → Pipeline from SCM → `jenkins-pipeline-setting/Jenkinsfile-CI`
+    - `flask-cd` → Pipeline from SCM → `jenkins-pipeline-setting/Jenkinsfile-CD`
   - Optionally bootstrap GitHub credentials and webhook listener
 
 - [ ] T063 Configure Jenkins jobs on EC2

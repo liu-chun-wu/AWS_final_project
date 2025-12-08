@@ -13,11 +13,11 @@ Use this quick list to confirm the pipeline still works after significant change
 - `./scripts/jenkins/32-cd-verify-deployment.sh --demo` confirms `/health` and `/echo` behave as expected.
 
 ## 3. Local Jenkins
-- `flask-ci` (pointing to `ci/Jenkinsfile-CI`) runs green inside the Dockerized Jenkins controller.
+- `flask-ci` (pointing to `jenkins-pipeline-setting/Jenkinsfile-CI`) runs green inside the Dockerized Jenkins controller.
 - `flask-cd` can deploy the same tag manually (Build with Parameters → BACKEND_DIR + IMAGE_TAG, or leave IMAGE_TAG blank to auto-detect).
 
 ## 4. EC2 Jenkins + Webhook
-- `./scripts/jenkins/41-setup-jenkins-ec2.sh --demo` (only when recreating) followed by `./scripts/jenkins/42-configure-jenkins-jobs.sh --ec2 --demo` leaves both jobs configured.
+- `./scripts/jenkins/41-setup-jenkins-ec2.sh --demo` (only when recreating; defaults t3.medium) followed by `./scripts/jenkins/42-configure-jenkins-jobs.sh --ec2 --demo` leaves both jobs configured.
 - A push to `Jeffery` triggers the CI job; run `flask-cd` manually when you are ready to deploy the approved image tag.
 - Post-deployment verification using `./scripts/jenkins/32-cd-verify-deployment.sh --prod` succeeds.
 

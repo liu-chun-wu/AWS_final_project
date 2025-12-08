@@ -8,28 +8,28 @@ Use this guide to move from manual scripts to Jenkins automation in two predicta
    - Requires Docker Desktop running.
    - Mounts the repository and Docker socket so container builds work.
 2. Visit `http://localhost:8080` and unlock Jenkins using the password printed by the script.
-3. Install the suggested plugins plus **Pipeline**, **Git**, and **Credentials Binding**.
+3. Install plugins: Git, GitHub, workflow-aggregator (Pipeline), credentials-binding, docker-workflow + docker-commons, aws-credentials, Blue Ocean. The configure script installs these with retries and pinned versions.
 4. (Optional) Run `./scripts/jenkins/42-configure-jenkins-jobs.sh --local --demo` to auto-create the `flask-ci` and `flask-cd` jobs. Otherwise create them manually:
-   - `flask-ci` → points to `ci/Jenkinsfile-CI`.
-   - `flask-cd` → points to `ci/Jenkinsfile-CD`.
-5. Add AWS credentials (access key or profile) so the jobs can call ECR and SAM from your workstation.
+   - `flask-ci` → points to `jenkins-pipeline-setting/Jenkinsfile-CI`.
+   - `flask-cd` → points to `jenkins-pipeline-setting/Jenkinsfile-CD`.
+5. Add AWS credentials (access key/secret + session token) via Credentials → Secret text / AWS creds. Jenkinsfiles bind `aws-lab-creds` and `aws-session-token`, and they self-install AWS/SAM CLI if missing.
 6. Trigger both jobs manually; confirm they pass just like the manual scripts.
 
 > Run local Jenkins whenever you need the friendly UI or want to dry-run Jenkinsfile edits without touching AWS infrastructure.
 
 ## 2. Jenkins on EC2
 
-1. Provision the instance:
+1. Provision the instance (defaults to `t3.medium`, override with `INSTANCE_TYPE=` if needed):
    ```bash
    ./scripts/jenkins/41-setup-jenkins-ec2.sh
    ```
-   - Launches a t2.small in us-east-1, attaches LabRole, installs Docker + Jenkins + SAM.
+   - Launches a t3.medium in us-east-1, attaches LabRole, installs Docker + Jenkins + SAM.
    - Prints the public URL and admin password.
 2. Configure jobs automatically:
    ```bash
    ./scripts/jenkins/42-configure-jenkins-jobs.sh --ec2 --demo
    ```
-   - Creates `flask-ci` and `flask-cd`, both “Pipeline from SCM” jobs reading Jenkinsfiles from Git.
+   - Creates `flask-ci` and `flask-cd`, both “Pipeline from SCM” jobs reading Jenkinsfiles from `jenkins-pipeline-setting/`.
 3. Update the GitHub webhook to point at `http://<ec2-ip>:8080/github-webhook/` (this triggers the CI job only; run `flask-cd` manually when you want to deploy) and resend a test payload.
 4. Use the start/stop scripts to control cost:
    ```bash

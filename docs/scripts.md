@@ -21,9 +21,10 @@ The repository exposes two script groups so you always know whether you are runn
 | `30-cd-validate-sam.sh` | Validate template, LabRole, and SAM build. | Ensures SAM deploy will succeed. |
 | `31-cd-deploy-sam.sh` | Deploy image to Lambda/API Gateway via SAM. | Accepts `--demo` or `--prod` and an image tag. |
 | `32-cd-verify-deployment.sh` | Hit `/health` and `/echo` after deployment. | Use for smoke tests or post-release checks. |
-| `41-setup-jenkins-ec2.sh` | Provision Jenkins on EC2 (Amazon Linux 2023). | Creates SG, installs Jenkins, and prints URL/password. |
-| `42-configure-jenkins-jobs.sh` | Configure `flask-ci` and `flask-cd` jobs via CLI/API. | Use `--local` for Docker Jenkins or `--ec2` for the cloud host. |
+| `41-setup-jenkins-ec2.sh` | Provision Jenkins on EC2 (Amazon Linux 2023). | Defaults to `t3.medium`; creates SG, installs Jenkins, prints URL/password. |
+| `42-configure-jenkins-jobs.sh` | Configure `flask-ci` and `flask-cd` jobs via CLI/API. | Uses Jenkinsfiles in `jenkins-pipeline-setting/`; handles plugin install with retries. |
 | `91-check-jenkins-status.sh` | Show EC2 Jenkins health/URL/logs. | Requires SSH access to the instance. |
 | `93-start-jenkins-ec2.sh` / `94-stop-jenkins-ec2.sh` | Start/stop the EC2 instance to manage cost. | Update GitHub webhook IP after a restart. |
+| `99-cleanup-all.sh` | Delete demo/prod stacks and ECR repo. | Use with care; prompts for confirmation. |
 
-Every Jenkinsfile stage calls into these scripts, so improving one script automatically benefits manual runs, local Jenkins, and EC2 Jenkins.
+Every Jenkinsfile stage calls into these scripts, so improving one script automatically benefits manual runs, local Jenkins, and EC2 Jenkins. The Jenkinsfiles live in `jenkins-pipeline-setting/` and are the single source of truth for both CI and CD.

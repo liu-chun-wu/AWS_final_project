@@ -18,7 +18,7 @@ This project demonstrates a **production-ready CI/CD pipeline** with:
 ## Key Features
 
 - ✅ **Automated Testing**: 18 pytest tests (unit + integration)
-- ✅ **Branch-Based Deployment**: Jeffery (CI only) vs main (CI + CD)
+- ✅ **Branch-Based Deployment**: Jeffery only (CI via webhook, CD manual trigger)
 - ✅ **GitHub Webhooks**: Automatic builds on every push
 - ✅ **AWS Automation**: 11 scripts for complete AWS lifecycle management
 - ✅ **Container-Based Lambda**: Docker images deployed to AWS Lambda
@@ -53,22 +53,15 @@ This project demonstrates a **production-ready CI/CD pipeline** with:
 
 | Branch | Pipeline Mode | Stages | Deployment | Use Case |
 |--------|--------------|--------|------------|----------|
-| **Jeffery** | Auto CI + manual CD | **CI**:<br>1) Checkout<br>2) Branch check<br>3) Setup virtualenv<br>4) Install deps<br>5) Run tests<br>6) Build Docker<br>**CD**:<br>1) Validate image<br>2) Deploy via SAM<br>3) Verify endpoints | Deploy via `flask-cd` with `demo-backend` parameters for production | Daily development & testing |
-| **main** | same as Jeffery branch | same as Jeffery branch| Deploy via `flask-cd` with `backend` parameters for production | Production releases |
+| **Jeffery** | Auto CI via GitHub webhook + manual CD | **CI**:<br>1) Checkout<br>2) Branch check (Jeffery-only)<br>3) Setup venv<br>4) Install deps<br>5) Run tests<br>6) Build Docker & push tags (`<BUILD_NUMBER>`, `latest`, `jenkins-build`)<br>**CD**:<br>1) Validate image<br>2) Deploy via SAM<br>3) Verify endpoints | Deploy via `flask-cd` with `BACKEND_DIR=demo-backend` and chosen IMAGE_TAG (or leave blank to auto-detect latest) | Daily development & deployments |
 
-GitHub webhooks trigger CI for both branches. When you’re ready to deploy a specific image (Jeffery test or main production), capture its IMAGE_TAG from the CI job and run `flask-cd` manually (local or EC2 Jenkins) with the desired `BACKEND_DIR`.
+GitHub webhooks trigger CI for Jeffery. When you’re ready to deploy, capture the IMAGE_TAG from the CI job and run `flask-cd` manually (local or EC2 Jenkins). CD pulls from ECR; it does not rebuild or push.
 
-**Jeffery Branch (Development):**
+**Jeffery Branch (Development + Deployments):**
 
-- Checkout → Setup → Install → Test → Build → Done
-- Fast feedback without AWS costs
-- Safe for experimentation
-
-**Main Branch (Production):**
-
-- Same CI stages run automatically when you push to main
-- After CI succeeds, run Jenkins `flask-cd` with `BACKEND_DIR=backend` and the approved IMAGE_TAG
-- Promotes the chosen image to AWS Lambda/API Gateway
+- Checkout → Setup → Install → Test → Build → Push (ECR)
+- Auto-triggered via webhook; branch filter inside Jenkinsfiles enforces Jeffery-only builds
+- CD remains manual for safety; you choose the IMAGE_TAG to deploy
 
 See [BRANCH_STRATEGY.md](BRANCH_STRATEGY.md) for complete workflow documentation.
 
@@ -91,9 +84,9 @@ aws-lab-flask-ci-cd/
 │   ├── requirements.txt
 │   └── Dockerfile
 │
-├── ci/
-│   ├── Jenkinsfile-CI     # CI pipeline (test, build, push)
-│   └── Jenkinsfile-CD     # CD pipeline (deploy, verify)
+├── jenkins-pipeline-setting/
+│   ├── Jenkinsfile-CI     # CI pipeline (test, build, push to ECR)
+│   └── Jenkinsfile-CD     # CD pipeline (deploy, verify from ECR)
 │
 ├── aws/
 │   ├── template.yaml      # SAM infrastructure template
@@ -111,11 +104,12 @@ aws-lab-flask-ci-cd/
 │       ├── 30-cd-validate-sam.sh
 │       ├── 31-cd-deploy-sam.sh
 │       ├── 32-cd-verify-deployment.sh
-│       ├── 41-setup-jenkins-ec2.sh
-│       ├── 42-configure-jenkins-jobs.sh
+│       ├── 41-setup-jenkins-ec2.sh      # default t3.medium (override INSTANCE_TYPE)
+│       ├── 42-configure-jenkins-jobs.sh # installs plugins, creates jobs, retries
 │       ├── 91-check-jenkins-status.sh
 │       ├── 93-start-jenkins-ec2.sh
-│       └── 94-stop-jenkins-ec2.sh
+│       ├── 94-stop-jenkins-ec2.sh
+│       └── 99-cleanup-all.sh            # delete stacks + ECR
 │
 ├── specs/                 # Complete planning documentation
 ├── BRANCH_STRATEGY.md     # Detailed workflow guide

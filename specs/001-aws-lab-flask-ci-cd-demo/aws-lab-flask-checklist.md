@@ -76,11 +76,11 @@
 
 ## Phase 4 – Jenkinsfile Preparation + Local Jenkins Automation
 
-- [ ] CHK-P4-01 Jenkinsfile-CI created in ci/ directory
+- [ ] CHK-P4-01 Jenkinsfile-CI created in jenkins-pipeline-setting/ directory
 - [ ] CHK-P4-02 Jenkinsfile-CI has all required stages (Checkout, Test, Build, Push)
 - [ ] CHK-P4-03 Jenkinsfile-CI parameterized correctly (BACKEND_DIR, BRANCH_NAME)
 - [ ] CHK-P4-04 Jenkinsfile-CI environment variables set (AWS_REGION, ECR_REPO)
-- [ ] CHK-P4-05 Jenkinsfile-CD created in ci/ directory
+- [ ] CHK-P4-05 Jenkinsfile-CD created in jenkins-pipeline-setting/ directory
 - [ ] CHK-P4-06 Jenkinsfile-CD has all required stages (Validate, Deploy, Verify)
 - [ ] CHK-P4-07 Jenkinsfile-CD parameterized correctly (IMAGE_TAG, BACKEND_TYPE)
 - [ ] CHK-P4-08 Jenkinsfile-CD validates image exists before deployment
@@ -102,7 +102,7 @@
 ## Phase 5 – Jenkins EC2 Deployment (Deploy After Local Jenkins Validation)
 
 - [ ] CHK-P5-01 EC2 provisioning script created (41-setup-jenkins-ec2.sh)
-- [ ] CHK-P5-02 EC2 instance launched (t2.small, Amazon Linux 2023)
+- [ ] CHK-P5-02 EC2 instance launched (t3.medium default, Amazon Linux 2023)
 - [ ] CHK-P5-03 Security group created (SSH 22, Jenkins 8080, HTTPS 443)
 - [ ] CHK-P5-04 Instance profile attached with LabRole
 - [ ] CHK-P5-05 Jenkins installed and running on EC2

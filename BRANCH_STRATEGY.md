@@ -6,8 +6,7 @@ This project uses a **branch-based CI/CD strategy** where different branches tri
 
 | Branch | Purpose | Pipeline Stages | Deployment | Use Case |
 |--------|---------|-----------------|------------|----------|
-| **Jeffery** | Development | Auto CI (same 6 stages) + manual CD (3 stages)  | Optional (demo-backend) | Daily development, testing changes |
-| **main** | Production | Auto CI (same 6 stages) + manual CD (3 stages) | AWS Lambda (manual `flask-cd`) | Production releases |
+| **Jeffery** | Primary development + deployments | Auto CI via webhook (checkout → branch check → venv → deps → tests → Docker build/push); manual CD (validate → deploy via SAM → verify) | Manual `flask-cd` (demo-backend) | All work happens here; CD is an intentional, manual trigger |
 
 ---
 
@@ -71,6 +70,8 @@ git push origin Jeffery
 ---
 
 ## Main Branch (Production)
+
+> Note: Current Jenkinsfiles and jobs are restricted to the **Jeffery** branch for both CI and CD. The main branch section is retained for historical context; deployments should be triggered from Jeffery.
 
 ### Purpose
 
