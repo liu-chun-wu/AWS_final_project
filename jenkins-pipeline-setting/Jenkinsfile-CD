@@ -406,7 +406,12 @@ pipeline {
     post {
         success {
             script {
-                def apiUrl = readFile('/tmp/api_url.txt').trim()
+                def apiUrl = ''
+                try {
+                    apiUrl = readFile('/tmp/api_url.txt').trim()
+                } catch (Exception e) {
+                    apiUrl = '(not captured)'
+                }
                 echo '============================================'
                 echo '✅ CD PIPELINE COMPLETED SUCCESSFULLY!'
                 echo '============================================'
