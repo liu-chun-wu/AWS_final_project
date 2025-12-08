@@ -442,8 +442,10 @@ REQUIRED_PLUGINS=(
     "github"                 # GitHub-specific features (webhooks, status updates)
     "workflow-aggregator"    # Pipeline plugin suite (declarative + scripted)
     "docker-workflow"        # Docker commands in Pipeline (docker.build, docker.push)
+    "docker-commons"         # Dependency of docker-workflow (pulls engine/tooling APIs)
     "credentials-binding"    # Bind credentials into environment variables
     "aws-credentials"        # AWS credential type + binding support
+    "blueocean"              # Modern Jenkins UI; useful for debugging pipelines
 )
 
 echo ""
@@ -460,6 +462,12 @@ for plugin in "${REQUIRED_PLUGINS[@]}"; do
             ;;
         "docker-workflow")
             echo "  • docker-workflow: Docker build/push commands in pipelines"
+            ;;
+        "docker-commons")
+            echo "  • docker-commons: Shared Docker APIs required by docker-workflow"
+            ;;
+        "blueocean")
+            echo "  • blueocean: Modern pipeline-centric UI (helps visualize CI/CD)"
             ;;
     esac
 done
