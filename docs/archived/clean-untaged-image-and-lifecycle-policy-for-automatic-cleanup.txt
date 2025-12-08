@@ -1,0 +1,65 @@
+  How to Clean Up Untagged Images:
+
+  Untagged images still consume storage and cost money! Here's how to delete
+   them:
+
+  Option 1: Delete Manually (AWS CLI)
+
+  # List untagged images
+  aws ecr list-images \
+    --repository-name aws-lab-flask-demo \
+    --region us-east-1 \
+    --filter "tagStatus=UNTAGGED" \
+    --query 'imageIds[*]' \
+    --output json
+
+  # Delete all untagged images
+  aws ecr batch-delete-image \
+    --repository-name aws-lab-flask-demo \
+    --region us-east-1 \
+    --image-ids "$(aws ecr list-images --repository-name aws-lab-flask-demo 
+  --region us-east-1 --filter 'tagStatus=UNTAGGED' --query 'imageIds[*]' 
+  --output json)" \
+    || echo "No untagged images to delete"
+
+  Option 2: ECR Lifecycle Policy (Automatic Cleanup)
+
+  Create a lifecycle policy to automatically delete untagged images:
+
+  # Create lifecycle policy
+  aws ecr put-lifecycle-policy \
+    --repository-name aws-lab-flask-demo \
+    --region us-east-1 \
+    --lifecycle-policy-text '{
+      "rules": [
+        {
+          "rulePriority": 1,
+          "description": "Delete untagged images after 1 day",
+          "selection": {
+            "tagStatus": "untagged",
+            "countType": "sinceImagePushed",
+            "countUnit": "days",
+            "countNumber": 1
+          },
+          "action": {
+            "type": "expire"
+          }
+        }
+      ]
+    }'
+
+  This will automatically delete untagged images older than 1 day.
+
+  ---
+  Summary:
+
+  - You pushed 3 times using the manual script
+  - Each push moved the :latest tag to the new image
+  - Old images became untagged but weren't deleted
+  - ECR shows 3 images: 2 untagged (orphaned) + 1 tagged (latest)
+
+  To prevent this: Use Jenkins pipeline which pushes with build numbers, or
+  clean up untagged images periodically!
+
+
+

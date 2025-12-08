@@ -1,0 +1,107 @@
+AWSTemplateFormatVersion: '2010-09-09'
+Transform: AWS::Serverless-2016-10-31
+Description: >
+  Flask Demo Backend - AWS Lambda Container Deployment
+
+  A simple Flask REST API deployed as a Lambda container function
+  with API Gateway for HTTP access and CloudWatch for logging.
+
+# Parameters for dynamic configuration
+Parameters:
+  ImageTag:
+    Type: String
+    Default: latest
+    Description: Docker image tag to deploy from ECR
+
+# Global settings applied to all resources
+Globals:
+  Function:
+    Timeout: 30
+    MemorySize: 512
+    Architectures:
+      - x86_64
+  Api:
+    Cors:
+      AllowMethods: "'GET,POST,OPTIONS'"
+      AllowHeaders: "'Content-Type,X-Amz-Date,Authorization,X-Api-Key,X-Amz-Security-Token'"
+      AllowOrigin: "'*'"
+
+Resources:
+  # Lambda Function using container image
+  FlaskDemoFunction:
+    Type: AWS::Serverless::Function
+    Properties:
+      # Use container image instead of zip deployment
+      PackageType: Image
+      # ECR image URI - uses ImageTag parameter for dynamic tag selection
+      # Format: <account-id>.dkr.ecr.<region>.amazonaws.com/<repo-name>:<tag>
+      ImageUri: !Sub '${AWS::AccountId}.dkr.ecr.${AWS::Region}.amazonaws.com/aws-lab-flask-demo:${ImageTag}'
+
+      # Use existing LabRole instead of creating new IAM role (AWS Learner Lab restriction)
+      Role: !Sub 'arn:aws:iam::${AWS::AccountId}:role/LabRole'
+
+      # API Gateway event triggers
+      Events:
+        # GET /health endpoint
+        HealthCheck:
+          Type: Api
+          Properties:
+            Path: /health
+            Method: get
+            RestApiId: !Ref FlaskDemoApi
+
+        # POST /echo endpoint
+        Echo:
+          Type: Api
+          Properties:
+            Path: /echo
+            Method: post
+            RestApiId: !Ref FlaskDemoApi
+
+      # Environment variables for the Lambda function
+      Environment:
+        Variables:
+          LOG_LEVEL: INFO
+          ENVIRONMENT: production
+
+      # CloudWatch Logs configuration
+      LoggingConfig:
+        LogFormat: JSON
+        ApplicationLogLevel: INFO
+        SystemLogLevel: INFO
+
+  # API Gateway REST API
+  FlaskDemoApi:
+    Type: AWS::Serverless::Api
+    Properties:
+      Name: flask-demo-api
+      StageName: Prod
+      Description: API Gateway for Flask Demo Backend
+
+# Outputs to display after deployment
+Outputs:
+  FlaskDemoApi:
+    Description: "API Gateway endpoint URL for Prod stage"
+    Value: !Sub "https://${FlaskDemoApi}.execute-api.${AWS::Region}.amazonaws.com/Prod/"
+    Export:
+      Name: FlaskDemoApiUrl
+
+  FlaskDemoFunction:
+    Description: "Flask Demo Lambda Function ARN"
+    Value: !GetAtt FlaskDemoFunction.Arn
+    Export:
+      Name: FlaskDemoFunctionArn
+
+  FlaskDemoFunctionLogGroup:
+    Description: "CloudWatch Logs group for Lambda Function"
+    Value: !Sub "/aws/lambda/${FlaskDemoFunction}"
+    Export:
+      Name: FlaskDemoLogGroup
+
+  HealthEndpoint:
+    Description: "Health check endpoint URL"
+    Value: !Sub "https://${FlaskDemoApi}.execute-api.${AWS::Region}.amazonaws.com/Prod/health"
+
+  EchoEndpoint:
+    Description: "Echo endpoint URL"
+    Value: !Sub "https://${FlaskDemoApi}.execute-api.${AWS::Region}.amazonaws.com/Prod/echo"

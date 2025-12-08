@@ -1,0 +1,372 @@
+================================================================================
+PHASE 3 IMPLEMENTATION TROUBLESHOOTING SUMMARY
+================================================================================
+Project: AWS Flask CI/CD Demo
+Phase: Phase 3a (Manual CI) & Phase 3b (Manual CD)
+Date: 2025-11-23
+Status: RESOLVED - All issues fixed, deployment successful
+================================================================================
+
+OVERVIEW
+--------
+This document records all problems encountered during Phase 3 implementation
+and their solutions. Phase 3 involves proving CI/CD workflows work manually
+before automating with Jenkins in Phase 4.
+
+Goal: Build Docker image → Push to ECR → Deploy to Lambda → Verify endpoints
+
+
+================================================================================
+PROBLEM 1: CloudFormation Stack in ROLLBACK_COMPLETE State
+================================================================================
+
+ISSUE:
+------
+Cannot update or deploy to CloudFormation stack. Error message:
+"Stack is in ROLLBACK_COMPLETE state and cannot be updated"
+
+ROOT CAUSE:
+-----------
+- User ran `sam deploy --guided` manually, creating stack with default name
+  "sam-app" instead of intended "flask-demo-backend"
+- Previous deployment failed, leaving stack in ROLLBACK_COMPLETE state
+- CloudFormation requires manual deletion of ROLLBACK_COMPLETE stacks
+
+SOLUTION:
+---------
+1. Delete all failed stacks before redeploying:
+   ```
+   aws cloudformation delete-stack --stack-name <stack-name> --region us-east-1
+   ```
+2. Wait for deletion to complete (15-30 seconds)
+3. Always use deployment scripts instead of manual `sam deploy --guided`
+
+KEY LEARNING:
+-------------
+- Always use Phase 3b scripts for consistent stack naming
+- ROLLBACK_COMPLETE stacks cannot be updated, only deleted
+- Script ensures stack name matches samconfig files
+
+
+================================================================================
+PROBLEM 2: Lambda Container Image Compatibility Error
+================================================================================
+
+ISSUE:
+------
+SAM deployment fails with error:
+"The image manifest, config or layer media type for the source image is not
+supported. (Service: Lambda, Status Code: 400)"
+
+ROOT CAUSES (Multiple):
+-----------------------
+1. Initially used standard `python:3.11-slim` without Lambda compatibility
+2. Then switched to Lambda base image `public.ecr.aws/lambda/python:3.11`
+   but this requires a Lambda handler function, not HTTP server
+3. Missing `--platform linux/amd64` flag (Mac M1/M2 defaults to ARM64)
+4. Docker attestation/provenance metadata not compatible with Lambda
+
+SOLUTION:
+---------
+Use AWS Lambda Web Adapter pattern:
+1. Base image: `python:3.11-slim` (standard Python, NOT Lambda base image)
+2. Add Lambda Web Adapter as extension layer:
+   ```dockerfile
+   COPY --from=public.ecr.aws/awsguru/aws-lambda-adapter:0.8.4 \
+        /lambda-adapter /opt/extensions/lambda-adapter
+   ```
+3. Run gunicorn HTTP server (Web Adapter translates Lambda events to HTTP)
+4. Build with correct flags:
+   ```bash
+   docker build --platform linux/amd64 --provenance=false --sbom=false \
+                -t image:tag .
+   ```
+
+KEY LEARNING:
+-------------
+- Lambda Web Adapter allows standard web apps to run on Lambda
+- Use standard Docker images (python:3.11-slim) + Web Adapter, NOT Lambda
+  base images (public.ecr.aws/lambda/python:3.11)
+- Always specify platform for cross-platform compatibility
+- Disable attestation/provenance for Lambda compatibility
+
+
+================================================================================
+PROBLEM 3: Stack Name Inconsistencies
+================================================================================
+
+ISSUE:
+------
+Scripts used different stack names than SAM config files, causing confusion
+and deployment failures.
+
+ROOT CAUSE:
+-----------
+- Scripts set: `STACK_NAME="$BACKEND_TYPE"` (demo-backend)
+- Config files had: `stack_name = "flask-demo-backend"`
+- Mismatch between script variables and config expectations
+
+SOLUTION:
+---------
+Updated all three scripts (31-cd-deploy-sam.sh, 32-cd-verify-deployment.sh)
+to match samconfig files:
+
+```bash
+if [ "$BACKEND_TYPE" == "demo-backend" ]; then
+    STACK_NAME="flask-demo-backend"
+else
+    STACK_NAME="flask-prod-backend"
+fi
+```
+
+KEY LEARNING:
+-------------
+- Maintain consistency between scripts and config files
+- Stack name must match across all deployment components
+
+
+================================================================================
+PROBLEM 4: SAM Template Missing ImageTag Parameter
+================================================================================
+
+ISSUE:
+------
+Template hardcoded `:latest` tag in ImageUri, couldn't deploy specific tags.
+Script passed `--parameter-overrides ImageTag=manual-test` but it had no effect.
+
+ROOT CAUSE:
+-----------
+Template didn't define ImageTag as a CloudFormation parameter.
+
+SOLUTION:
+---------
+Added Parameters section to aws/template.yaml:
+
+```yaml
+Parameters:
+  ImageTag:
+    Type: String
+    Default: latest
+    Description: Docker image tag to deploy from ECR
+
+Resources:
+  FlaskDemoFunction:
+    Properties:
+      ImageUri: !Sub '${AWS::AccountId}.dkr.ecr.${AWS::Region}.amazonaws.com/aws-lab-flask-demo:${ImageTag}'
+```
+
+KEY LEARNING:
+-------------
+- SAM parameters must be explicitly defined in template
+- Use `!Sub` with `${ParameterName}` to reference parameters
+
+
+================================================================================
+PROBLEM 5: SAM Deploy Image Repository Configuration Conflict
+================================================================================
+
+ISSUE:
+------
+Error: "Only one of the following can be provided: '--image-repositories',
+'--image-repository', '--resolve-image-repos'"
+
+ROOT CAUSE:
+-----------
+- samconfig files had `image_repositories = [...]`
+- Script also passed `--resolve-image-repos` flag
+- SAM doesn't allow both configuration methods simultaneously
+
+SOLUTION:
+---------
+1. Removed `image_repositories` from both samconfig files
+2. Added comment explaining auto-resolution:
+   ```toml
+   # Image repositories resolved automatically via --resolve-image-repos
+   ```
+3. Script uses `--resolve-image-repos` flag for dynamic resolution
+
+KEY LEARNING:
+-------------
+- Choose one method: config file OR command-line flag, not both
+- `--resolve-image-repos` is cleaner for dynamic deployments
+
+
+================================================================================
+PROBLEM 6: CloudFormation Output Key Mismatches
+================================================================================
+
+ISSUE:
+------
+Verification script couldn't find API Gateway URL and Lambda ARN.
+Error: "Could not retrieve API Gateway URL"
+
+ROOT CAUSE:
+-----------
+Script queried wrong output keys:
+- Looked for: `ApiUrl`, `FlaskFunctionArn`
+- Actual keys: `FlaskDemoApi`, `FlaskDemoFunction`
+
+SOLUTION:
+---------
+Updated verification script queries:
+
+```bash
+# API Gateway URL
+--query 'Stacks[0].Outputs[?OutputKey==`FlaskDemoApi`].OutputValue'
+
+# Lambda Function ARN
+--query 'Stacks[0].Outputs[?OutputKey==`FlaskDemoFunction`].OutputValue'
+```
+
+KEY LEARNING:
+-------------
+- Always verify CloudFormation output keys match query expectations
+- Check actual outputs with:
+  `aws cloudformation describe-stacks --stack-name <name>`
+
+
+================================================================================
+PROBLEM 7: Docker Build Cache Preventing Rebuild
+================================================================================
+
+ISSUE:
+------
+After changing Dockerfile base image, Docker used cached layers with old
+base image. Build showed "CACHED" for all layers.
+
+ROOT CAUSE:
+-----------
+Docker's layer caching system reused old layers even though base image changed.
+
+SOLUTION:
+---------
+Temporarily added `--no-cache` flag to force complete rebuild:
+
+```bash
+docker build --no-cache --platform linux/amd64 \
+             --provenance=false --sbom=false -t image:tag .
+```
+
+After confirming new image worked, removed `--no-cache` for faster builds.
+
+KEY LEARNING:
+-------------
+- Use `--no-cache` when changing base images or critical dependencies
+- Remove after verification to restore build speed
+- Check build output for "CACHED" vs actual execution
+
+
+================================================================================
+PROBLEM 8: Lambda Runtime Handler Error
+================================================================================
+
+ISSUE:
+------
+Lambda returns 502 error. Logs show:
+"entrypoint requires the handler name to be the first argument"
+
+ROOT CAUSE:
+-----------
+Using Lambda base image (`public.ecr.aws/lambda/python:3.11`) with gunicorn
+CMD. Lambda base images expect a handler function, not an HTTP server.
+
+SOLUTION:
+---------
+Switched architecture to Lambda Web Adapter pattern:
+1. Base: `python:3.11-slim` (standard image)
+2. Add: Lambda Web Adapter extension
+3. CMD: gunicorn HTTP server
+4. Web Adapter handles Lambda event → HTTP request translation
+
+This allows Flask to run as a normal web app while Lambda handles it
+transparently.
+
+KEY LEARNING:
+-------------
+- Lambda base images are for traditional Lambda handlers
+- Lambda Web Adapter enables web frameworks (Flask, Express, etc.)
+- Standard Docker images + Web Adapter = simpler architecture
+
+
+================================================================================
+FINAL WORKING CONFIGURATION
+================================================================================
+
+DOCKER IMAGE:
+-------------
+- Base: python:3.11-slim
+- Extension: AWS Lambda Web Adapter 0.8.4
+- Server: gunicorn with Flask
+- Build flags: --platform linux/amd64 --provenance=false --sbom=false
+
+DEPLOYMENT SCRIPTS:
+-------------------
+1. 20-ci-build-and-push.sh
+   - Runs pytest tests
+   - Builds Docker image with correct flags
+   - Pushes to ECR with manual-test and latest tags
+
+2. 31-cd-deploy-sam.sh
+   - Auto-detects latest image from ECR
+   - Uses --resolve-image-repos for dynamic repository resolution
+   - Deploys with correct stack name (flask-demo-backend)
+
+3. 32-cd-verify-deployment.sh
+   - Tests /health and /echo endpoints
+   - Verifies CloudWatch logs
+   - Uses correct output keys
+
+VERIFIED ENDPOINTS:
+-------------------
+✅ Health: https://2w30k8kk4h.execute-api.us-east-1.amazonaws.com/Prod/health
+✅ Echo:   https://2w30k8kk4h.execute-api.us-east-1.amazonaws.com/Prod/echo
+
+
+================================================================================
+KEY TAKEAWAYS FOR PHASE 4 (Jenkins Automation)
+================================================================================
+
+1. CONSISTENCY IS CRITICAL
+   - Stack names must match across scripts, configs, and templates
+   - Output keys must align with actual CloudFormation outputs
+
+2. LAMBDA WEB ADAPTER PATTERN
+   - Use standard Docker images + Web Adapter for web frameworks
+   - Avoid Lambda base images unless writing traditional handlers
+   - Enables local/Docker/Lambda portability
+
+3. DOCKER BUILD BEST PRACTICES
+   - Always specify --platform linux/amd64 for Lambda
+   - Disable provenance/sbom for Lambda compatibility
+   - Use --no-cache when changing base images
+
+4. SAM DEPLOYMENT
+   - Define all parameters in template.yaml
+   - Use --resolve-image-repos for dynamic ECR repository handling
+   - Always delete ROLLBACK_COMPLETE stacks before redeploying
+
+5. VALIDATION WORKFLOW
+   - Prove scripts work manually (Phase 3)
+   - Then codify in Jenkinsfiles (Phase 4)
+   - Auto-detection reduces manual errors
+
+6. ERROR HANDLING
+   - Check CloudFormation stack status before deployment
+   - Verify image architecture matches Lambda requirements
+   - Review CloudWatch logs when endpoints fail
+
+
+================================================================================
+NEXT PHASE: Phase 4 - Jenkinsfile Creation
+================================================================================
+
+Now that Phase 3 scripts are proven to work:
+1. Create Jenkinsfile-CI mirroring 20-ci-build-and-push.sh
+2. Create Jenkinsfile-CD mirroring 31-cd-deploy-sam.sh + 32-cd-verify-deployment.sh
+3. Add branch-based logic (Jeffery branch = CI only, main = full CI/CD)
+4. Commit to Git for GitHub webhook automation
+
+
+================================================================================
+END OF TROUBLESHOOTING SUMMARY
+================================================================================

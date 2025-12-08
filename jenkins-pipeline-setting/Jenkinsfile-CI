@@ -1,0 +1,290 @@
+pipeline {
+    agent any
+
+    parameters {
+        choice(
+            name: 'BACKEND_DIR',
+            choices: ['demo-backend', 'backend'],
+            description: 'Which backend to build and test?\n• demo-backend: Flask demo for CI/CD validation\n• backend: Production service'
+        )
+    }
+
+    environment {
+        IMAGE_NAME = 'aws-lab-flask-demo'
+        IMAGE_TAG = "${BUILD_NUMBER}"
+        BACKEND = "${params.BACKEND_DIR ?: 'demo-backend'}"
+        AWS_REGION = 'us-east-1'
+        TOOLS_PATH = "${env.WORKSPACE}/.aws-cli/bin:/usr/local/bin:/usr/bin:/bin"
+    }
+
+    stages {
+        stage('Checkout') {
+            steps {
+                echo 'Checking out source code from repository...'
+                checkout scm
+                echo 'Source code checked out successfully'
+            }
+        }
+
+        stage('Validate Jeffery Branch') {
+            steps {
+                script {
+                    def branchName = env.GIT_BRANCH ?: 'unknown'
+                    echo "============================================"
+                    echo "CI Pipeline - Continuous Integration"
+                    echo "============================================"
+                    echo "Current branch: ${branchName}"
+                    echo "Backend directory: ${env.BACKEND}"
+                    echo ""
+
+                    if (!branchName.contains('Jeffery')) {
+                        currentBuild.result = 'NOT_BUILT'
+                        error("❌ This CI pipeline is designed for the Jeffery branch only!\n" +
+                              "   Current branch: ${branchName}\n" +
+                              "   Expected branch: Jeffery\n\n" +
+                              "   For main branch deployment, use Jenkinsfile-CD instead.")
+                    }
+
+                    echo "✅ Jeffery branch validated"
+                    echo "   Pipeline mode: CI ONLY (Continuous Integration)"
+                    echo "   - Will run: Checkout, Setup, Install, Test, Build"
+                    echo "   - Will skip: AWS deployment (no ECR push, no Lambda deploy)"
+                    echo "   Purpose: Fast feedback for development"
+                    echo "============================================"
+                }
+            }
+        }
+
+        stage('Ensure AWS CLI') {
+            steps {
+                withCredentials([
+                    [$class: 'AmazonWebServicesCredentialsBinding', credentialsId: 'aws-lab-creds', accessKeyVariable: 'AWS_ACCESS_KEY_ID', secretKeyVariable: 'AWS_SECRET_ACCESS_KEY'],
+                    string(credentialsId: 'aws-session-token', variable: 'AWS_SESSION_TOKEN')
+                ]) {
+                    sh '''
+                        set -e
+                        export PATH="${TOOLS_PATH}"
+                        if ! command -v aws >/dev/null 2>&1; then
+                            ARCH=$(uname -m)
+                            echo "AWS CLI not found; installing for ${ARCH}..."
+                            curl -s "https://awscli.amazonaws.com/awscli-exe-linux-${ARCH}.zip" -o /tmp/awscliv2.zip
+                            unzip -qo /tmp/awscliv2.zip -d /tmp
+                            /tmp/aws/install --bin-dir "$WORKSPACE/.aws-cli/bin" --install-dir "$WORKSPACE/.aws-cli" --update
+                        fi
+                        aws --version
+                    '''
+                }
+            }
+        }
+
+        stage('Setup Python Environment') {
+            steps {
+                echo 'Setting up Python virtual environment...'
+                sh '''
+                    cd ${BACKEND}
+                    python3 -m venv .venv
+                    . .venv/bin/activate
+                    pip install --upgrade pip
+                    echo "✅ Python environment setup complete"
+                '''
+            }
+        }
+
+        stage('Install Dependencies') {
+            steps {
+                echo 'Installing Python dependencies from requirements.txt...'
+                sh '''
+                    cd ${BACKEND}
+                    . .venv/bin/activate
+                    pip install -r requirements.txt
+                    echo "✅ Dependencies installed successfully"
+                '''
+            }
+        }
+
+        stage('Run Tests') {
+            steps {
+                echo 'Running test suite (unit + integration)...'
+                sh '''
+                    cd ${BACKEND}
+                    . .venv/bin/activate
+
+                    echo "============================================"
+                    echo "Running unit tests..."
+                    echo "============================================"
+                    pytest tests/unit/ -v
+
+                    echo ""
+                    echo "============================================"
+                    echo "Running integration tests..."
+                    echo "============================================"
+                    pytest tests/integration/ -v
+
+                    echo ""
+                    echo "✅ All tests passed successfully"
+                '''
+            }
+        }
+
+        stage('Build Docker Image') {
+            steps {
+                echo 'Building Docker image for Lambda compatibility...'
+                withCredentials([
+                    [$class: 'AmazonWebServicesCredentialsBinding', credentialsId: 'aws-lab-creds', accessKeyVariable: 'AWS_ACCESS_KEY_ID', secretKeyVariable: 'AWS_SECRET_ACCESS_KEY'],
+                    string(credentialsId: 'aws-session-token', variable: 'AWS_SESSION_TOKEN')
+                ]) {
+                  sh '''
+                    export PATH="${TOOLS_PATH}"
+                    echo "Building with Lambda-compatible settings:"
+                    echo "  - Platform: linux/amd64 (Lambda requirement)"
+                    echo "  - Provenance: disabled (Lambda requirement)"
+                    echo "  - SBOM: disabled (Lambda requirement)"
+                    echo ""
+
+                    docker build \\
+                        --platform linux/amd64 \\
+                        --provenance=false \\
+                        --sbom=false \\
+                        -t ${IMAGE_NAME}:${IMAGE_TAG} \\
+                        ${BACKEND}/
+
+                    docker tag ${IMAGE_NAME}:${IMAGE_TAG} ${IMAGE_NAME}:latest
+
+                    echo ""
+                    echo "✅ Docker image built successfully"
+                    echo "   Image: ${IMAGE_NAME}:${IMAGE_TAG}"
+                    echo "   Also tagged as: ${IMAGE_NAME}:latest"
+                  '''
+                }
+            }
+        }
+
+        stage('Push Image to ECR') {
+            steps {
+                echo 'Pushing image to ECR...'
+                withCredentials([
+                    [$class: 'AmazonWebServicesCredentialsBinding', credentialsId: 'aws-lab-creds', accessKeyVariable: 'AWS_ACCESS_KEY_ID', secretKeyVariable: 'AWS_SECRET_ACCESS_KEY'],
+                    string(credentialsId: 'aws-session-token', variable: 'AWS_SESSION_TOKEN')
+                ]) {
+                  sh '''
+                    set -e
+                    export PATH="${TOOLS_PATH}"
+
+                    ACCOUNT_ID=$(aws sts get-caller-identity --query Account --output text)
+                    if [ -z "$ACCOUNT_ID" ]; then
+                        echo "❌ Unable to resolve AWS account ID"
+                        exit 1
+                    fi
+                    ECR_REGISTRY="${ACCOUNT_ID}.dkr.ecr.${AWS_REGION}.amazonaws.com"
+                    ECR_IMAGE="${ECR_REGISTRY}/${IMAGE_NAME}:${IMAGE_TAG}"
+                    ECR_IMAGE_LATEST="${ECR_REGISTRY}/${IMAGE_NAME}:latest"
+                    ECR_IMAGE_JENKINS="${ECR_REGISTRY}/${IMAGE_NAME}:jenkins-build"
+
+                    # Ensure repo exists
+                    aws ecr describe-repositories --repository-name ${IMAGE_NAME} --region ${AWS_REGION} >/dev/null 2>&1 || \
+                      aws ecr create-repository --repository-name ${IMAGE_NAME} --image-scanning-configuration scanOnPush=true --region ${AWS_REGION}
+
+                    aws ecr get-login-password --region ${AWS_REGION} | docker login --username AWS --password-stdin ${ECR_REGISTRY}
+
+                    docker tag ${IMAGE_NAME}:${IMAGE_TAG} ${ECR_IMAGE}
+                    docker tag ${IMAGE_NAME}:${IMAGE_TAG} ${ECR_IMAGE_LATEST}
+                    docker tag ${IMAGE_NAME}:${IMAGE_TAG} ${ECR_IMAGE_JENKINS}
+
+                    docker push ${ECR_IMAGE}
+                    docker push ${ECR_IMAGE_LATEST}
+                    docker push ${ECR_IMAGE_JENKINS}
+
+                    echo "ECR_IMAGE=${ECR_IMAGE}" > push_vars.txt
+                    echo "ECR_IMAGE_LATEST=${ECR_IMAGE_LATEST}" >> push_vars.txt
+                    echo "ECR_IMAGE_JENKINS=${ECR_IMAGE_JENKINS}" >> push_vars.txt
+                  '''
+                  script {
+                    def varsFile = readFile('push_vars.txt').trim().split('\n')
+                    varsFile.each { line ->
+                        def (k,v) = line.tokenize('=')
+                        env."${k}" = v
+                    }
+                    echo "Recorded ECR image: ${env.ECR_IMAGE}"
+                    echo "Latest tag: ${env.ECR_IMAGE_LATEST}"
+                    echo "Jenkins tag: ${env.ECR_IMAGE_JENKINS}"
+                  }
+                }
+            }
+        }
+    }
+
+    post {
+        success {
+            script {
+                echo '============================================'
+                echo '✅ CI PIPELINE COMPLETED SUCCESSFULLY!'
+                echo '============================================'
+                echo "Build #${BUILD_NUMBER} finished"
+                echo "Backend: ${env.BACKEND}"
+                echo "Docker image: ${IMAGE_NAME}:${IMAGE_TAG}"
+                echo "ECR image: ${env.ECR_IMAGE ?: 'not pushed'}"
+                echo "ECR latest: ${env.ECR_IMAGE_LATEST ?: 'not pushed'}"
+                echo "ECR jenkins: ${env.ECR_IMAGE_JENKINS ?: 'not pushed'}"
+                echo ''
+                echo 'Results:'
+                echo '  ✓ All tests passed'
+                echo '  ✓ Docker image built (Lambda-compatible)'
+                echo '  ✓ Image pushed to ECR'
+                echo ''
+                echo 'Next steps:'
+                echo "  1. Use IMAGE_TAG=${IMAGE_TAG} in CD job (or auto-detect latest)."
+                echo "  2. ECR image: ${env.ECR_IMAGE}"
+                echo "  3. Alternate tags: latest, jenkins-build"
+                echo '============================================'
+            }
+        }
+        failure {
+            script {
+                echo '============================================'
+                echo '❌ CI PIPELINE FAILED'
+                echo '============================================'
+                echo "Build #${BUILD_NUMBER} failed"
+                echo "Backend: ${env.BACKEND}"
+                echo ''
+                echo 'Common issues and solutions:'
+                echo ''
+                echo '  1. Branch validation failed:'
+                echo '     - This pipeline only runs on Jeffery branch'
+                echo '     - For main branch, use Jenkinsfile-CD instead'
+                echo '     - Check current branch: git branch'
+                echo ''
+                echo '  2. Tests failing:'
+                echo '     - Check test output in "Run Tests" stage above'
+                echo '     - Run tests locally:'
+                echo '       cd ${BACKEND}'
+                echo '       python3 -m venv .venv'
+                echo '       . .venv/bin/activate'
+                echo '       pip install -r requirements.txt'
+                echo '       pytest tests/ -v'
+                echo ''
+                echo '  3. Docker build failing:'
+                echo '     - Check Dockerfile syntax in ${BACKEND}/Dockerfile'
+                echo '     - Verify requirements.txt is valid'
+                echo '     - Test build locally:'
+                echo '       docker build --platform linux/amd64 -t test ${BACKEND}/'
+                echo ''
+                echo '  4. Python environment issues:'
+                echo '     - Check Python version: python3 --version (need 3.11)'
+                echo '     - Verify virtual environment setup'
+                echo '     - Check disk space for venv creation'
+                echo ''
+                echo 'Troubleshooting guide:'
+                echo '  See: docs/phase3-troubleshooting.txt'
+                echo '============================================'
+            }
+        }
+        always {
+            echo 'Cleaning up workspace...'
+            sh '''
+                cd ${BACKEND} 2>/dev/null || true
+                rm -rf .venv 2>/dev/null || true
+                echo "✓ Cleanup completed"
+            '''
+        }
+    }
+}
