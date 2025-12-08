@@ -65,7 +65,7 @@ pipeline {
         stage('Resolve AWS Account') {
             steps {
                 sh '''
-                    ACCOUNT_ID=290586330241
+                    ACCOUNT_ID=$(aws sts get-caller-identity --query Account --output text)
                     if [ -z "$ACCOUNT_ID" ]; then
                         echo "❌ Unable to resolve AWS account ID"
                         exit 1
