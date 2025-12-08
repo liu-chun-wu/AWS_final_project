@@ -442,6 +442,8 @@ REQUIRED_PLUGINS=(
     "github"                 # GitHub-specific features (webhooks, status updates)
     "workflow-aggregator"    # Pipeline plugin suite (declarative + scripted)
     "docker-workflow"        # Docker commands in Pipeline (docker.build, docker.push)
+    "credentials-binding"    # Bind credentials into environment variables
+    "aws-credentials"        # AWS credential type + binding support
 )
 
 echo ""

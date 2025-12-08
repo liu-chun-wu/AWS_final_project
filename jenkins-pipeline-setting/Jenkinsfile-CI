@@ -13,6 +13,8 @@ pipeline {
         IMAGE_NAME = 'aws-lab-flask-demo'
         IMAGE_TAG = "${BUILD_NUMBER}"
         BACKEND = "${params.BACKEND_DIR ?: 'demo-backend'}"
+        AWS_REGION = 'us-east-1'
+        PATH = "/usr/local/bin:/usr/bin:/bin"
     }
 
     stages {
@@ -105,7 +107,11 @@ pipeline {
         stage('Build Docker Image') {
             steps {
                 echo 'Building Docker image for Lambda compatibility...'
-                sh '''
+                withCredentials([
+                    [$class: 'AmazonWebServicesCredentialsBinding', credentialsId: 'aws-lab-creds', accessKeyVariable: 'AWS_ACCESS_KEY_ID', secretKeyVariable: 'AWS_SECRET_ACCESS_KEY'],
+                    string(credentialsId: 'aws-session-token', variable: 'AWS_SESSION_TOKEN')
+                ]) {
+                  sh '''
                     echo "Building with Lambda-compatible settings:"
                     echo "  - Platform: linux/amd64 (Lambda requirement)"
                     echo "  - Provenance: disabled (Lambda requirement)"
@@ -128,7 +134,8 @@ pipeline {
                     echo ""
                     echo "   Note: Image built locally for validation only."
                     echo "   To push to ECR, merge to main branch (triggers CD pipeline)."
-                '''
+                  '''
+                }
             }
         }
     }

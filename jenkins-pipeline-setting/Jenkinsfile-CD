@@ -82,19 +82,24 @@ pipeline {
 
         stage('Resolve AWS Account') {
             steps {
-                sh '''
-                    ACCOUNT_ID=$(aws sts get-caller-identity --query Account --output text)
-                    if [ -z "$ACCOUNT_ID" ]; then
-                        echo "❌ Unable to resolve AWS account ID"
-                        exit 1
-                    fi
-                    echo "$ACCOUNT_ID" > /tmp/aws_account_id.txt
-                '''
-                script {
-                    env.AWS_ACCOUNT_ID = readFile('/tmp/aws_account_id.txt').trim()
-                    env.ECR_REGISTRY = "${env.AWS_ACCOUNT_ID}.dkr.ecr.${env.AWS_REGION}.amazonaws.com"
-                    echo "✅ Using AWS account: ${env.AWS_ACCOUNT_ID}"
-                    echo "✅ ECR registry: ${env.ECR_REGISTRY}"
+                withCredentials([
+                    [$class: 'AmazonWebServicesCredentialsBinding', credentialsId: 'aws-lab-creds', accessKeyVariable: 'AWS_ACCESS_KEY_ID', secretKeyVariable: 'AWS_SECRET_ACCESS_KEY'],
+                    string(credentialsId: 'aws-session-token', variable: 'AWS_SESSION_TOKEN')
+                ]) {
+                    sh '''
+                        ACCOUNT_ID=$(aws sts get-caller-identity --query Account --output text)
+                        if [ -z "$ACCOUNT_ID" ]; then
+                            echo "❌ Unable to resolve AWS account ID"
+                            exit 1
+                        fi
+                        echo "$ACCOUNT_ID" > /tmp/aws_account_id.txt
+                    '''
+                    script {
+                        env.AWS_ACCOUNT_ID = readFile('/tmp/aws_account_id.txt').trim()
+                        env.ECR_REGISTRY = "${env.AWS_ACCOUNT_ID}.dkr.ecr.${env.AWS_REGION}.amazonaws.com"
+                        echo "✅ Using AWS account: ${env.AWS_ACCOUNT_ID}"
+                        echo "✅ ECR registry: ${env.ECR_REGISTRY}"
+                    }
                 }
             }
         }
@@ -109,53 +114,58 @@ pipeline {
                         echo "✅ Using explicitly specified image tag: ${env.DEPLOY_IMAGE_TAG}"
                     } else {
                         echo "No IMAGE_TAG parameter provided. Auto-detecting latest image from ECR..."
-                        sh '''
-                            set +e
-                            # Ensure repository exists (idempotent)
-                            aws ecr describe-repositories \
-                                --repository-name ${IMAGE_NAME} \
-                                --region ${AWS_REGION} >/dev/null 2>&1 || {
-                                  echo "ECR repo '${IMAGE_NAME}' not found. Creating..."
-                                  aws ecr create-repository \
+                        withCredentials([
+                            [$class: 'AmazonWebServicesCredentialsBinding', credentialsId: 'aws-lab-creds', accessKeyVariable: 'AWS_ACCESS_KEY_ID', secretKeyVariable: 'AWS_SECRET_ACCESS_KEY'],
+                            string(credentialsId: 'aws-session-token', variable: 'AWS_SESSION_TOKEN')
+                        ]) {
+                            sh '''
+                                set +e
+                                # Ensure repository exists (idempotent)
+                                aws ecr describe-repositories \
                                     --repository-name ${IMAGE_NAME} \
-                                    --image-scanning-configuration scanOnPush=true \
-                                    --region ${AWS_REGION}
-                                }
+                                    --region ${AWS_REGION} >/dev/null 2>&1 || {
+                                      echo "ECR repo '${IMAGE_NAME}' not found. Creating..."
+                                      aws ecr create-repository \
+                                        --repository-name ${IMAGE_NAME} \
+                                        --image-scanning-configuration scanOnPush=true \
+                                        --region ${AWS_REGION}
+                                    }
 
-                            # Fetch newest tag by push time
-                            IMAGE_TAG=$(aws ecr describe-images \
-                                --repository-name ${IMAGE_NAME} \
-                                --region ${AWS_REGION} \
-                                --query 'sort_by(imageDetails,&imagePushedAt)[-1].imageTags[0]' \
-                                --output text 2>/dev/null)
+                                # Fetch newest tag by push time
+                                IMAGE_TAG=$(aws ecr describe-images \
+                                    --repository-name ${IMAGE_NAME} \
+                                    --region ${AWS_REGION} \
+                                    --query 'sort_by(imageDetails,&imagePushedAt)[-1].imageTags[0]' \
+                                    --output text 2>/dev/null)
 
-                            STATUS=$?
-                            if [ $STATUS -ne 0 ]; then
-                                echo "❌ AWS CLI error while describing images"
-                                exit $STATUS
-                            fi
+                                STATUS=$?
+                                if [ $STATUS -ne 0 ]; then
+                                    echo "❌ AWS CLI error while describing images"
+                                    exit $STATUS
+                                fi
 
-                            if [ -z "$IMAGE_TAG" ] || [ "$IMAGE_TAG" = "None" ]; then
-                                echo "❌ No images found in ECR repository: ${IMAGE_NAME}"
-                                echo ""
-                                echo "Push an image first, e.g.:"
-                                echo "  ./scripts/jenkins/20-ci-build-and-push.sh --demo"
-                                echo "or run CI to publish one."
-                                exit 1
-                            fi
+                                if [ -z "$IMAGE_TAG" ] || [ "$IMAGE_TAG" = "None" ]; then
+                                    echo "❌ No images found in ECR repository: ${IMAGE_NAME}"
+                                    echo ""
+                                    echo "Push an image first, e.g.:"
+                                    echo "  ./scripts/jenkins/20-ci-build-and-push.sh --demo"
+                                    echo "or run CI to publish one."
+                                    exit 1
+                                fi
 
-                            echo "$IMAGE_TAG" > /tmp/detected_image_tag.txt
-                            echo "✅ Auto-detected image tag: $IMAGE_TAG"
+                                echo "$IMAGE_TAG" > /tmp/detected_image_tag.txt
+                                echo "✅ Auto-detected image tag: $IMAGE_TAG"
 
-                            PUSH_TIME=$(aws ecr describe-images \
-                                --repository-name ${IMAGE_NAME} \
-                                --region ${AWS_REGION} \
-                                --image-ids imageTag=$IMAGE_TAG \
-                                --query 'imageDetails[0].imagePushedAt' \
-                                --output text 2>/dev/null)
+                                PUSH_TIME=$(aws ecr describe-images \
+                                    --repository-name ${IMAGE_NAME} \
+                                    --region ${AWS_REGION} \
+                                    --image-ids imageTag=$IMAGE_TAG \
+                                    --query 'imageDetails[0].imagePushedAt' \
+                                    --output text 2>/dev/null)
 
-                            echo "   Pushed at: $PUSH_TIME"
-                        '''
+                                echo "   Pushed at: $PUSH_TIME"
+                            '''
+                        }
                         env.DEPLOY_IMAGE_TAG = readFile('/tmp/detected_image_tag.txt').trim()
                     }
 
@@ -177,11 +187,16 @@ pipeline {
                 echo "ECR Registry: ${ECR_REGISTRY}"
                 echo "AWS Region: ${AWS_REGION}"
                 echo ''
-                sh '''
-                    aws ecr get-login-password --region ${AWS_REGION} | \
-                    docker login --username AWS --password-stdin ${ECR_REGISTRY}
-                    echo "✅ ECR authentication successful (valid for 12 hours)"
-                '''
+                withCredentials([
+                    [$class: 'AmazonWebServicesCredentialsBinding', credentialsId: 'aws-lab-creds', accessKeyVariable: 'AWS_ACCESS_KEY_ID', secretKeyVariable: 'AWS_SECRET_ACCESS_KEY'],
+                    string(credentialsId: 'aws-session-token', variable: 'AWS_SESSION_TOKEN')
+                ]) {
+                    sh '''
+                        aws ecr get-login-password --region ${AWS_REGION} | \
+                        docker login --username AWS --password-stdin ${ECR_REGISTRY}
+                        echo "✅ ECR authentication successful (valid for 12 hours)"
+                    '''
+                }
             }
         }
 
@@ -194,18 +209,23 @@ pipeline {
                 echo "SAM Config: ${env.SAM_CONFIG}"
                 echo "Template: aws/template.yaml"
                 echo ''
-                sh '''
-                    cd aws
+                withCredentials([
+                    [$class: 'AmazonWebServicesCredentialsBinding', credentialsId: 'aws-lab-creds', accessKeyVariable: 'AWS_ACCESS_KEY_ID', secretKeyVariable: 'AWS_SECRET_ACCESS_KEY'],
+                    string(credentialsId: 'aws-session-token', variable: 'AWS_SESSION_TOKEN')
+                ]) {
+                    sh '''
+                        cd aws
 
-                    echo "Validating SAM template..."
-                    sam validate --template template.yaml
-                    echo "✅ Template validation passed"
+                        echo "Validating SAM template..."
+                        sam validate --template template.yaml
+                        echo "✅ Template validation passed"
 
-                    echo ""
-                    echo "Building SAM application (skips Docker build for ECR images)..."
-                    sam build --template template.yaml
-                    echo "✅ SAM build complete"
-                '''
+                        echo ""
+                        echo "Building SAM application (skips Docker build for ECR images)..."
+                        sam build --template template.yaml
+                        echo "✅ SAM build complete"
+                    '''
+                }
             }
         }
 
@@ -224,29 +244,34 @@ pipeline {
                 echo '  - IAM permissions'
                 echo '  - CloudWatch log groups'
                 echo ''
-                sh '''
-                    cd aws
+                withCredentials([
+                    [$class: 'AmazonWebServicesCredentialsBinding', credentialsId: 'aws-lab-creds', accessKeyVariable: 'AWS_ACCESS_KEY_ID', secretKeyVariable: 'AWS_SECRET_ACCESS_KEY'],
+                    string(credentialsId: 'aws-session-token', variable: 'AWS_SESSION_TOKEN')
+                ]) {
+                    sh '''
+                        cd aws
 
-                    echo "Deploying to AWS (may take 3-5 minutes)..."
-                    sam deploy \\
-                        --config-file ${SAM_CONFIG} \\
-                        --stack-name ${STACK_NAME} \\
-                        --parameter-overrides ImageTag=${DEPLOY_IMAGE_TAG} \\
-                        --resolve-image-repos \\
-                        --no-confirm-changeset \\
-                        --no-fail-on-empty-changeset \\
-                        --region ${AWS_REGION}
+                        echo "Deploying to AWS (may take 3-5 minutes)..."
+                        sam deploy \
+                            --config-file ${SAM_CONFIG} \
+                            --stack-name ${STACK_NAME} \
+                            --parameter-overrides ImageTag=${DEPLOY_IMAGE_TAG} \
+                            --resolve-image-repos \
+                            --no-confirm-changeset \
+                            --no-fail-on-empty-changeset \
+                            --region ${AWS_REGION}
 
-                    echo ""
-                    echo "✅ SAM deployment complete"
-                    echo ""
-                    echo "Getting deployment outputs..."
-                    aws cloudformation describe-stacks \\
-                        --stack-name ${STACK_NAME} \\
-                        --region ${AWS_REGION} \\
-                        --query 'Stacks[0].Outputs' \\
-                        --output table
-                '''
+                        echo ""
+                        echo "✅ SAM deployment complete"
+                        echo ""
+                        echo "Getting deployment outputs..."
+                        aws cloudformation describe-stacks \
+                            --stack-name ${STACK_NAME} \
+                            --region ${AWS_REGION} \
+                            --query 'Stacks[0].Outputs' \
+                            --output table
+                    '''
+                }
             }
         }
 
@@ -257,86 +282,91 @@ pipeline {
                 echo '============================================'
                 echo 'Testing deployed endpoints...'
                 echo ''
-                sh '''
-                    # Get API Gateway URL
-                    API_URL=$(aws cloudformation describe-stacks \\
-                        --stack-name ${STACK_NAME} \\
-                        --region ${AWS_REGION} \\
-                        --query 'Stacks[0].Outputs[?OutputKey==`FlaskDemoApi`].OutputValue' \\
-                        --output text 2>/dev/null)
+                withCredentials([
+                    [$class: 'AmazonWebServicesCredentialsBinding', credentialsId: 'aws-lab-creds', accessKeyVariable: 'AWS_ACCESS_KEY_ID', secretKeyVariable: 'AWS_SECRET_ACCESS_KEY'],
+                    string(credentialsId: 'aws-session-token', variable: 'AWS_SESSION_TOKEN')
+                ]) {
+                    sh '''
+                        # Get API Gateway URL
+                        API_URL=$(aws cloudformation describe-stacks \
+                            --stack-name ${STACK_NAME} \
+                            --region ${AWS_REGION} \
+                            --query 'Stacks[0].Outputs[?OutputKey==`FlaskDemoApi`].OutputValue' \
+                            --output text 2>/dev/null)
 
-                    if [ -z "$API_URL" ]; then
-                        echo "❌ Could not retrieve API Gateway URL from CloudFormation"
-                        exit 1
-                    fi
-
-                    echo "✅ API Gateway URL: $API_URL"
-                    echo ""
-
-                    # Test /health endpoint
-                    echo "============================================"
-                    echo "Testing /health endpoint..."
-                    echo "============================================"
-                    HEALTH_RESPONSE=$(curl -s -w "\\nHTTP_STATUS:%{http_code}" "$API_URL/health")
-                    HTTP_STATUS=$(echo "$HEALTH_RESPONSE" | grep "HTTP_STATUS" | cut -d: -f2)
-                    RESPONSE_BODY=$(echo "$HEALTH_RESPONSE" | grep -v "HTTP_STATUS")
-
-                    echo "HTTP Status: $HTTP_STATUS"
-                    echo "Response: $RESPONSE_BODY"
-
-                    if [ "$HTTP_STATUS" == "200" ]; then
-                        echo "✅ Health endpoint working"
-
-                        if echo "$RESPONSE_BODY" | grep -q "status.*ok"; then
-                            echo "✅ Response contains expected status"
-                        else
-                            echo "⚠️  Unexpected response format"
+                        if [ -z "$API_URL" ]; then
+                            echo "❌ Could not retrieve API Gateway URL from CloudFormation"
+                            exit 1
                         fi
-                    else
-                        echo "❌ Health endpoint returned HTTP $HTTP_STATUS"
-                        exit 1
-                    fi
 
-                    echo ""
+                        echo "✅ API Gateway URL: $API_URL"
+                        echo ""
 
-                    # Test /echo endpoint
-                    echo "============================================"
-                    echo "Testing /echo endpoint..."
-                    echo "============================================"
-                    TEST_DATA='{"message": "Jenkins CD verification", "build": "'${BUILD_NUMBER}'"}'
+                        # Test /health endpoint
+                        echo "============================================"
+                        echo "Testing /health endpoint..."
+                        echo "============================================"
+                        HEALTH_RESPONSE=$(curl -s -w "\\nHTTP_STATUS:%{http_code}" "$API_URL/health")
+                        HTTP_STATUS=$(echo "$HEALTH_RESPONSE" | grep "HTTP_STATUS" | cut -d: -f2)
+                        RESPONSE_BODY=$(echo "$HEALTH_RESPONSE" | grep -v "HTTP_STATUS")
 
-                    ECHO_RESPONSE=$(curl -s -w "\\nHTTP_STATUS:%{http_code}" \\
-                        -X POST \\
-                        -H "Content-Type: application/json" \\
-                        -d "$TEST_DATA" \\
-                        "$API_URL/echo")
+                        echo "HTTP Status: $HTTP_STATUS"
+                        echo "Response: $RESPONSE_BODY"
 
-                    HTTP_STATUS=$(echo "$ECHO_RESPONSE" | grep "HTTP_STATUS" | cut -d: -f2)
-                    RESPONSE_BODY=$(echo "$ECHO_RESPONSE" | grep -v "HTTP_STATUS")
+                        if [ "$HTTP_STATUS" == "200" ]; then
+                            echo "✅ Health endpoint working"
 
-                    echo "HTTP Status: $HTTP_STATUS"
-                    echo "Request: $TEST_DATA"
-                    echo "Response: $RESPONSE_BODY"
-
-                    if [ "$HTTP_STATUS" == "200" ]; then
-                        echo "✅ Echo endpoint working"
-
-                        if echo "$RESPONSE_BODY" | grep -q "Jenkins CD verification"; then
-                            echo "✅ Response echoes request body correctly"
+                            if echo "$RESPONSE_BODY" | grep -q "status.*ok"; then
+                                echo "✅ Response contains expected status"
+                            else
+                                echo "⚠️  Unexpected response format"
+                            fi
                         else
-                            echo "⚠️  Response doesn't match expected format"
+                            echo "❌ Health endpoint returned HTTP $HTTP_STATUS"
+                            exit 1
                         fi
-                    else
-                        echo "❌ Echo endpoint returned HTTP $HTTP_STATUS"
-                        exit 1
-                    fi
 
-                    echo ""
-                    echo "✅ All endpoint verification tests passed"
+                        echo ""
 
-                    # Save API URL for post-build actions
-                    echo "$API_URL" > /tmp/api_url.txt
-                '''
+                        # Test /echo endpoint
+                        echo "============================================"
+                        echo "Testing /echo endpoint..."
+                        echo "============================================"
+                        TEST_DATA='{"message": "Jenkins CD verification", "build": "'${BUILD_NUMBER}'"}'
+
+                        ECHO_RESPONSE=$(curl -s -w "\\nHTTP_STATUS:%{http_code}" \
+                            -X POST \
+                            -H "Content-Type: application/json" \
+                            -d "$TEST_DATA" \
+                            "$API_URL/echo")
+
+                        HTTP_STATUS=$(echo "$ECHO_RESPONSE" | grep "HTTP_STATUS" | cut -d: -f2)
+                        RESPONSE_BODY=$(echo "$ECHO_RESPONSE" | grep -v "HTTP_STATUS")
+
+                        echo "HTTP Status: $HTTP_STATUS"
+                        echo "Request: $TEST_DATA"
+                        echo "Response: $RESPONSE_BODY"
+
+                        if [ "$HTTP_STATUS" == "200" ]; then
+                            echo "✅ Echo endpoint working"
+
+                            if echo "$RESPONSE_BODY" | grep -q "Jenkins CD verification"; then
+                                echo "✅ Response echoes request body correctly"
+                            else
+                                echo "⚠️  Response doesn't match expected format"
+                            fi
+                        else
+                            echo "❌ Echo endpoint returned HTTP $HTTP_STATUS"
+                            exit 1
+                        fi
+
+                        echo ""
+                        echo "✅ All endpoint verification tests passed"
+
+                        # Save API URL for post-build actions
+                        echo "$API_URL" > /tmp/api_url.txt
+                    '''
+                }
             }
         }
     }
