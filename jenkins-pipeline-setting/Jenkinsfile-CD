@@ -69,7 +69,7 @@ pipeline {
                 ]) {
                     sh '''
                         set -e
-                        export PATH="$WORKSPACE/.aws-cli/bin:/usr/local/bin:/usr/bin:/bin"
+                        export PATH="$WORKSPACE/.aws-cli/bin:$WORKSPACE/.sam-cli/bin:/usr/local/bin:/usr/bin:/bin"
                         if ! command -v aws >/dev/null 2>&1; then
                             ARCH=$(uname -m)
                             echo "AWS CLI not found; installing for ${ARCH}..."
@@ -90,7 +90,7 @@ pipeline {
             steps {
                 sh '''
                     set -e
-                    export PATH="$WORKSPACE/.sam-cli/bin:/usr/local/bin:/usr/bin:/bin"
+                    export PATH="$WORKSPACE/.aws-cli/bin:$WORKSPACE/.sam-cli/bin:/usr/local/bin:/usr/bin:/bin"
                     if ! command -v sam >/dev/null 2>&1; then
                         echo "SAM CLI not found; installing in workspace..."
                         python3 -m venv "$WORKSPACE/.sam-cli"
@@ -113,6 +113,7 @@ pipeline {
                     string(credentialsId: 'aws-session-token', variable: 'AWS_SESSION_TOKEN')
                 ]) {
                     sh '''
+                        export PATH="$WORKSPACE/.aws-cli/bin:$WORKSPACE/.sam-cli/bin:/usr/local/bin:/usr/bin:/bin"
                         ACCOUNT_ID=$(aws sts get-caller-identity --query Account --output text)
                         if [ -z "$ACCOUNT_ID" ]; then
                             echo "❌ Unable to resolve AWS account ID"
@@ -145,6 +146,7 @@ pipeline {
                             string(credentialsId: 'aws-session-token', variable: 'AWS_SESSION_TOKEN')
                         ]) {
                             sh '''
+                                export PATH="$WORKSPACE/.aws-cli/bin:$WORKSPACE/.sam-cli/bin:/usr/local/bin:/usr/bin:/bin"
                                 set +e
                                 # Ensure repository exists (idempotent)
                                 aws ecr describe-repositories \
@@ -218,6 +220,7 @@ pipeline {
                     string(credentialsId: 'aws-session-token', variable: 'AWS_SESSION_TOKEN')
                 ]) {
                     sh '''
+                        export PATH="$WORKSPACE/.aws-cli/bin:$WORKSPACE/.sam-cli/bin:/usr/local/bin:/usr/bin:/bin"
                         aws ecr get-login-password --region ${AWS_REGION} | \
                         docker login --username AWS --password-stdin ${ECR_REGISTRY}
                         echo "✅ ECR authentication successful (valid for 12 hours)"
@@ -240,6 +243,7 @@ pipeline {
                     string(credentialsId: 'aws-session-token', variable: 'AWS_SESSION_TOKEN')
                 ]) {
                     sh '''
+                        export PATH="$WORKSPACE/.aws-cli/bin:$WORKSPACE/.sam-cli/bin:/usr/local/bin:/usr/bin:/bin"
                         cd aws
 
                         echo "Validating SAM template..."
@@ -275,6 +279,7 @@ pipeline {
                     string(credentialsId: 'aws-session-token', variable: 'AWS_SESSION_TOKEN')
                 ]) {
                     sh '''
+                        export PATH="$WORKSPACE/.aws-cli/bin:$WORKSPACE/.sam-cli/bin:/usr/local/bin:/usr/bin:/bin"
                         cd aws
 
                         echo "Deploying to AWS (may take 3-5 minutes)..."
@@ -313,6 +318,7 @@ pipeline {
                     string(credentialsId: 'aws-session-token', variable: 'AWS_SESSION_TOKEN')
                 ]) {
                     sh '''
+                        export PATH="$WORKSPACE/.aws-cli/bin:$WORKSPACE/.sam-cli/bin:/usr/local/bin:/usr/bin:/bin"
                         # Get API Gateway URL
                         API_URL=$(aws cloudformation describe-stacks \
                             --stack-name ${STACK_NAME} \
