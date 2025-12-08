@@ -21,6 +21,7 @@ pipeline {
         // SAM config file selection
         SAM_CONFIG = "${params.BACKEND_DIR == 'backend' ? 'samconfig-prod.toml' : 'samconfig-demo.toml'}"
         STACK_NAME = "${params.BACKEND_DIR == 'backend' ? 'flask-prod-backend' : 'flask-demo-backend'}"
+        PATH = "/usr/local/bin:/usr/bin:/bin"
     }
 
     stages {
@@ -76,6 +77,26 @@ pipeline {
                 '''
                 script {
                     env.PATH = "${env.WORKSPACE}/.aws-cli/bin:/usr/local/bin:/usr/bin:/bin"
+                }
+            }
+        }
+
+        stage('Ensure SAM CLI') {
+            steps {
+                sh '''
+                    set -e
+                    export PATH="$WORKSPACE/.sam-cli/bin:/usr/local/bin:/usr/bin:/bin"
+                    if ! command -v sam >/dev/null 2>&1; then
+                        echo "SAM CLI not found; installing in workspace..."
+                        python3 -m venv "$WORKSPACE/.sam-cli"
+                        . "$WORKSPACE/.sam-cli/bin/activate"
+                        pip install --upgrade pip
+                        pip install aws-sam-cli
+                    fi
+                    sam --version
+                '''
+                script {
+                    env.PATH = "${env.WORKSPACE}/.sam-cli/bin:${env.WORKSPACE}/.aws-cli/bin:/usr/local/bin:/usr/bin:/bin"
                 }
             }
         }
