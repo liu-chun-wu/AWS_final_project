@@ -17,13 +17,12 @@ pipeline {
     environment {
         IMAGE_NAME = 'aws-lab-flask-demo'
         AWS_REGION = 'us-east-1'
-        // ECR_REGISTRY will be set dynamically based on AWS account
-        // For manual configuration, set in Jenkins: Manage Jenkins > Configure System > Global Properties
-        ECR_REGISTRY = "${env.AWS_ACCOUNT_ID ? env.AWS_ACCOUNT_ID : 'NOT_SET'}.dkr.ecr.us-east-1.amazonaws.com"
         BACKEND = "${params.BACKEND_DIR ?: 'demo-backend'}"
         // SAM config file selection
         SAM_CONFIG = "${params.BACKEND_DIR == 'backend' ? 'samconfig-prod.toml' : 'samconfig-demo.toml'}"
         STACK_NAME = "${params.BACKEND_DIR == 'backend' ? 'flask-prod-backend' : 'flask-demo-backend'}"
+        // ensure aws installed path is visible
+        PATH = "/usr/local/bin:/usr/bin:/bin"
     }
 
     stages {
@@ -35,7 +34,7 @@ pipeline {
             }
         }
 
-        stage('Validate Main Branch') {
+        stage('Validate Jeffery Branch') {
             steps {
                 script {
                     def branchName = env.GIT_BRANCH ?: 'unknown'
@@ -52,17 +51,32 @@ pipeline {
                         currentBuild.result = 'NOT_BUILT'
                         error("❌ This CD pipeline is designed for the Jeffery branch only!\n" +
                               "   Current branch: ${branchName}\n" +
-                              "   Expected branch: Jeffery\n\n" +
-                              "   Production deployments should only happen from Jeffery.\n" +
-                              "   For development/testing, use Jenkinsfile-CI on Jeffery branch.")
+                              "   Expected branch: Jeffery")
                     }
 
-                    echo "✅ Main branch validated"
+                    echo "✅ Branch validated: Jeffery"
                     echo "   Pipeline mode: CD (Continuous Deployment)"
                     echo "   - Will run: ECR login, Image push, SAM deploy, Verification"
-                    echo "   - Deploys to: AWS Lambda + API Gateway"
-                    echo "   Purpose: Production deployment from validated code"
                     echo "============================================"
+                }
+            }
+        }
+
+        stage('Resolve AWS Account') {
+            steps {
+                sh '''
+                    ACCOUNT_ID=$(aws sts get-caller-identity --query Account --output text)
+                    if [ -z "$ACCOUNT_ID" ]; then
+                        echo "❌ Unable to resolve AWS account ID"
+                        exit 1
+                    fi
+                    echo "$ACCOUNT_ID" > /tmp/aws_account_id.txt
+                '''
+                script {
+                    env.AWS_ACCOUNT_ID = readFile('/tmp/aws_account_id.txt').trim()
+                    env.ECR_REGISTRY = "${env.AWS_ACCOUNT_ID}.dkr.ecr.${env.AWS_REGION}.amazonaws.com"
+                    echo "✅ Using AWS account: ${env.AWS_ACCOUNT_ID}"
+                    echo "✅ ECR registry: ${env.ECR_REGISTRY}"
                 }
             }
         }
