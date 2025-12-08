@@ -135,7 +135,8 @@ else
 fi
 
 AWS_REGION="${AWS_REGION:-us-east-1}"
-INSTANCE_TYPE="t2.small"
+# Default to a roomier instance; override with INSTANCE_TYPE env if desired
+INSTANCE_TYPE="${INSTANCE_TYPE:-t3.medium}"
 INSTANCE_NAME="jenkins-ci-cd-${ENVIRONMENT}"
 SECURITY_GROUP_NAME="jenkins-ec2-sg-${ENVIRONMENT}"
 KEY_NAME="${KEY_NAME:-vockey}"
@@ -165,8 +166,8 @@ show_introduction() {
 
     print_info "EC2 Instance Types:"
     print_info "  • t2.micro: 1 vCPU, 1GB RAM (~$0.012/hr) - Free tier"
-    print_info "  • t2.small: 1 vCPU, 2GB RAM (~$0.023/hr) - Our choice for Jenkins"
-    print_info "  • t2.medium: 2 vCPU, 4GB RAM (~$0.046/hr) - Larger workloads"
+    print_info "  • t3.medium: 2 vCPU, 4GB RAM (~$0.0416/hr) - Default for Jenkins"
+    print_info "  • t3.large: 2 vCPU, 8GB RAM (~$0.0832/hr) - Heavier builds"
     print_info "  • m5.large: 2 vCPU, 8GB RAM (~$0.096/hr) - Production"
     echo ""
 
@@ -182,7 +183,7 @@ show_introduction() {
 
     print_info "Configuration:"
     echo -e "  ${BLUE}Environment:${NC}       $ENVIRONMENT"
-    echo -e "  ${BLUE}Instance Type:${NC}     $INSTANCE_TYPE (1 vCPU, 2GB RAM)"
+    echo -e "  ${BLUE}Instance Type:${NC}     $INSTANCE_TYPE (recommended: t3.medium 2 vCPU, 4GB RAM)"
     echo -e "  ${BLUE}Instance Name:${NC}     $INSTANCE_NAME"
     echo -e "  ${BLUE}Region:${NC}            $AWS_REGION"
     echo -e "  ${BLUE}Key Pair:${NC}          $KEY_NAME"
