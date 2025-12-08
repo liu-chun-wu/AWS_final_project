@@ -63,20 +63,25 @@ pipeline {
 
         stage('Ensure AWS CLI') {
             steps {
-                sh '''
-                    set -e
-                    export PATH="$WORKSPACE/.aws-cli/bin:/usr/local/bin:/usr/bin:/bin"
-                    if ! command -v aws >/dev/null 2>&1; then
-                        ARCH=$(uname -m)
-                        echo "AWS CLI not found; installing for ${ARCH}..."
-                        curl -s "https://awscli.amazonaws.com/awscli-exe-linux-${ARCH}.zip" -o /tmp/awscliv2.zip
-                        unzip -qo /tmp/awscliv2.zip -d /tmp
-                        /tmp/aws/install --bin-dir "$WORKSPACE/.aws-cli/bin" --install-dir "$WORKSPACE/.aws-cli" --update
-                    fi
-                    aws --version
-                '''
-                script {
-                    env.PATH = "${env.WORKSPACE}/.aws-cli/bin:/usr/local/bin:/usr/bin:/bin"
+                withCredentials([
+                    [$class: 'AmazonWebServicesCredentialsBinding', credentialsId: 'aws-lab-creds', accessKeyVariable: 'AWS_ACCESS_KEY_ID', secretKeyVariable: 'AWS_SECRET_ACCESS_KEY'],
+                    string(credentialsId: 'aws-session-token', variable: 'AWS_SESSION_TOKEN')
+                ]) {
+                    sh '''
+                        set -e
+                        export PATH="$WORKSPACE/.aws-cli/bin:/usr/local/bin:/usr/bin:/bin"
+                        if ! command -v aws >/dev/null 2>&1; then
+                            ARCH=$(uname -m)
+                            echo "AWS CLI not found; installing for ${ARCH}..."
+                            curl -s "https://awscli.amazonaws.com/awscli-exe-linux-${ARCH}.zip" -o /tmp/awscliv2.zip
+                            unzip -qo /tmp/awscliv2.zip -d /tmp
+                            /tmp/aws/install --bin-dir "$WORKSPACE/.aws-cli/bin" --install-dir "$WORKSPACE/.aws-cli" --update
+                        fi
+                        aws --version
+                    '''
+                    script {
+                        env.PATH = "${env.WORKSPACE}/.aws-cli/bin:/usr/local/bin:/usr/bin:/bin"
+                    }
                 }
             }
         }
