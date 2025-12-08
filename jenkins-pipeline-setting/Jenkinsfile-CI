@@ -14,7 +14,7 @@ pipeline {
         IMAGE_TAG = "${BUILD_NUMBER}"
         BACKEND = "${params.BACKEND_DIR ?: 'demo-backend'}"
         AWS_REGION = 'us-east-1'
-        PATH = "/usr/local/bin:/usr/bin:/bin"
+        TOOLS_PATH = "${env.WORKSPACE}/.aws-cli/bin:/usr/local/bin:/usr/bin:/bin"
     }
 
     stages {
@@ -51,6 +51,28 @@ pipeline {
                     echo "   - Will skip: AWS deployment (no ECR push, no Lambda deploy)"
                     echo "   Purpose: Fast feedback for development"
                     echo "============================================"
+                }
+            }
+        }
+
+        stage('Ensure AWS CLI') {
+            steps {
+                withCredentials([
+                    [$class: 'AmazonWebServicesCredentialsBinding', credentialsId: 'aws-lab-creds', accessKeyVariable: 'AWS_ACCESS_KEY_ID', secretKeyVariable: 'AWS_SECRET_ACCESS_KEY'],
+                    string(credentialsId: 'aws-session-token', variable: 'AWS_SESSION_TOKEN')
+                ]) {
+                    sh '''
+                        set -e
+                        export PATH="${TOOLS_PATH}"
+                        if ! command -v aws >/dev/null 2>&1; then
+                            ARCH=$(uname -m)
+                            echo "AWS CLI not found; installing for ${ARCH}..."
+                            curl -s "https://awscli.amazonaws.com/awscli-exe-linux-${ARCH}.zip" -o /tmp/awscliv2.zip
+                            unzip -qo /tmp/awscliv2.zip -d /tmp
+                            /tmp/aws/install --bin-dir "$WORKSPACE/.aws-cli/bin" --install-dir "$WORKSPACE/.aws-cli" --update
+                        fi
+                        aws --version
+                    '''
                 }
             }
         }
@@ -112,6 +134,7 @@ pipeline {
                     string(credentialsId: 'aws-session-token', variable: 'AWS_SESSION_TOKEN')
                 ]) {
                   sh '''
+                    export PATH="${TOOLS_PATH}"
                     echo "Building with Lambda-compatible settings:"
                     echo "  - Platform: linux/amd64 (Lambda requirement)"
                     echo "  - Provenance: disabled (Lambda requirement)"
@@ -145,7 +168,7 @@ pipeline {
                 ]) {
                   sh '''
                     set -e
-                    export PATH="/usr/local/bin:/usr/bin:/bin"
+                    export PATH="${TOOLS_PATH}"
 
                     ACCOUNT_ID=$(aws sts get-caller-identity --query Account --output text)
                     if [ -z "$ACCOUNT_ID" ]; then
