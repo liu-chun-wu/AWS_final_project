@@ -397,40 +397,44 @@ pipeline {
 
                         echo ""
 
-                        # Test /echo endpoint
-                        echo "============================================"
-                        echo "Testing /echo endpoint..."
-                        echo "============================================"
-                        TEST_DATA='{"message": "Jenkins CD verification", "build": "'${BUILD_NUMBER}'"}'
+                        if [ "${BACKEND}" = "demo-backend" ]; then
+                            # Test /echo endpoint (demo only)
+                            echo "============================================"
+                            echo "Testing /echo endpoint..."
+                            echo "============================================"
+                            TEST_DATA='{"message": "Jenkins CD verification", "build": "'${BUILD_NUMBER}'"}'
 
-                        ECHO_RESPONSE=$(curl -s -w "\\nHTTP_STATUS:%{http_code}" \
-                            -X POST \
-                            -H "Content-Type: application/json" \
-                            -d "$TEST_DATA" \
-                            "$API_URL/echo")
+                            ECHO_RESPONSE=$(curl -s -w "\\nHTTP_STATUS:%{http_code}" \
+                                -X POST \
+                                -H "Content-Type: application/json" \
+                                -d "$TEST_DATA" \
+                                "$API_URL/echo")
 
-                        HTTP_STATUS=$(echo "$ECHO_RESPONSE" | grep "HTTP_STATUS" | cut -d: -f2)
-                        RESPONSE_BODY=$(echo "$ECHO_RESPONSE" | grep -v "HTTP_STATUS")
+                            HTTP_STATUS=$(echo "$ECHO_RESPONSE" | grep "HTTP_STATUS" | cut -d: -f2)
+                            RESPONSE_BODY=$(echo "$ECHO_RESPONSE" | grep -v "HTTP_STATUS")
 
-                        echo "HTTP Status: $HTTP_STATUS"
-                        echo "Request: $TEST_DATA"
-                        echo "Response: $RESPONSE_BODY"
+                            echo "HTTP Status: $HTTP_STATUS"
+                            echo "Request: $TEST_DATA"
+                            echo "Response: $RESPONSE_BODY"
 
-                        if [ "$HTTP_STATUS" = "200" ]; then
-                            echo "✅ Echo endpoint working"
+                            if [ "$HTTP_STATUS" = "200" ]; then
+                                echo "✅ Echo endpoint working"
 
-                            if echo "$RESPONSE_BODY" | grep -q "Jenkins CD verification"; then
-                                echo "✅ Response echoes request body correctly"
+                                if echo "$RESPONSE_BODY" | grep -q "Jenkins CD verification"; then
+                                    echo "✅ Response echoes request body correctly"
+                                else
+                                    echo "⚠️  Response doesn't match expected format"
+                                fi
                             else
-                                echo "⚠️  Response doesn't match expected format"
+                                echo "❌ Echo endpoint returned HTTP $HTTP_STATUS"
+                                exit 1
                             fi
-                        else
-                            echo "❌ Echo endpoint returned HTTP $HTTP_STATUS"
-                            exit 1
-                        fi
 
-                        echo ""
-                        echo "✅ All endpoint verification tests passed"
+                            echo ""
+                            echo "✅ All endpoint verification tests passed"
+                        else
+                            echo "⚠ Skipping /echo verification for production backend (endpoint not present)"
+                        fi
 
                         # Save API URL for post-build actions
                         echo "$API_URL" > /tmp/api_url.txt
