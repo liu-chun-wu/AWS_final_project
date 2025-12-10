@@ -61,7 +61,7 @@ PROJECT_ROOT="$(cd "$SCRIPT_DIR/../.." && pwd)"
 source "${SCRIPT_DIR}/env-common.sh"
 
 AWS_REGION="${PIPELINE_AWS_REGION:-${AWS_REGION:-us-east-1}}"
-REPO_NAME="${PIPELINE_ECR_REPO:-aws-lab-flask-demo}"
+REPO_NAME="${PIPELINE_ECR_REPO:-aws-final-project-repo}"
 
 ################################################################################
 # Helper Functions for Output Formatting

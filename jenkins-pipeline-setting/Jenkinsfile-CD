@@ -47,7 +47,7 @@ pipeline {
                             }
                         }
                     }
-                    env.IMAGE_NAME = env.PIPELINE_IMAGE_NAME ?: 'aws-lab-flask-demo'
+                    env.IMAGE_NAME = env.PIPELINE_IMAGE_NAME ?: 'aws-final-project-repo'
                     env.AWS_REGION = env.PIPELINE_AWS_REGION ?: 'us-east-1'
                     env.BRANCH_ALLOWED = env.PIPELINE_BRANCH_ALLOWED ?: 'Jeffery'
                     def backendChoice = params.BACKEND_DIR ?: 'demo'

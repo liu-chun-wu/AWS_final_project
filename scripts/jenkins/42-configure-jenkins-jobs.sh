@@ -996,7 +996,7 @@ echo "• Jenkins Console: $JENKINS_URL"
 echo "• CI job builds: $JENKINS_URL/job/$CI_JOB_NAME/"
 echo "• CD job builds: $JENKINS_URL/job/$CD_JOB_NAME/"
 echo "• CloudWatch Logs:"
-echo "    aws logs tail /aws/lambda/flask-demo-backend-FlaskDemoFunction-* --follow"
+echo "    aws logs tail /aws/lambda/${PIPELINE_STACK_DEMO:-flask-demo-backend}-FlaskDemoFunction-* --follow"
 echo ""
 echo ""
 

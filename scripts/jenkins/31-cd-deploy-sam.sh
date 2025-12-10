@@ -85,8 +85,8 @@ while [[ $# -gt 0 ]]; do
             echo "Deploy Flask application to AWS Lambda via SAM"
             echo ""
             echo "Options:"
-            echo "  --demo        Deploy to demo-backend stack (flask-demo-backend)"
-            echo "  --prod        Deploy to prod-backend stack (flask-prod-backend)"
+            echo "  --demo        Deploy to demo-backend stack (${PIPELINE_STACK_DEMO:-flask-demo-backend})"
+            echo "  --prod        Deploy to prod-backend stack (${PIPELINE_STACK_PROD:-flask-prod-backend})"
             echo "  --image-tag   ECR image tag to deploy (optional, auto-detects latest)"
             echo ""
             echo "Examples:"
@@ -127,7 +127,7 @@ fi
 
 AWS_REGION="${PIPELINE_AWS_REGION:-${AWS_REGION:-us-east-1}}"
 AWS_ACCOUNT_ID=$(aws sts get-caller-identity --query 'Account' --output text)
-REPO_NAME="${PIPELINE_ECR_REPO:-aws-lab-flask-demo}"
+REPO_NAME="${PIPELINE_ECR_REPO:-aws-final-project-repo}"
 
 # Set stack name and config based on backend type
 if [ "$BACKEND_TYPE" == "demo-backend" ]; then

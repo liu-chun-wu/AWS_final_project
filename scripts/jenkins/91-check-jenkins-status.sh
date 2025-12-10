@@ -659,7 +659,7 @@ echo "  Configure Jenkins CI/CD jobs:"
 echo "    ./scripts/jenkins/42-configure-jenkins-jobs.sh --$ENVIRONMENT"
 echo ""
 echo "  View CloudWatch logs:"
-echo "    aws logs tail /aws/lambda/flask-demo-backend-FlaskDemoFunction-* --follow"
+echo "    aws logs tail /aws/lambda/${PIPELINE_STACK_DEMO:-flask-demo-backend}-FlaskDemoFunction-* --follow"
 echo ""
 
 print_header "Status Check Complete"

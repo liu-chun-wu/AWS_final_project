@@ -14,7 +14,7 @@ Parameters:
     Description: Docker image tag to deploy from ECR
   ImageRepoName:
     Type: String
-    Default: aws-lab-flask-demo
+    Default: aws-final-project-repo
     Description: ECR repository name that stores the Lambda container image
 
 # Global settings applied to all resources

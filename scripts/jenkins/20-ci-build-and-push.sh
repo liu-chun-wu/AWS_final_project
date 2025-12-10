@@ -91,7 +91,7 @@ PROJECT_ROOT="$(cd "$SCRIPT_DIR/../.." && pwd)"
 source "${SCRIPT_DIR}/env-common.sh"
 
 AWS_REGION="${PIPELINE_AWS_REGION:-${AWS_REGION:-us-east-1}}"
-REPO_NAME="${PIPELINE_ECR_REPO:-aws-lab-flask-demo}"
+REPO_NAME="${PIPELINE_ECR_REPO:-aws-final-project-repo}"
 IMAGE_TAG="${IMAGE_TAG:-manual-test}"  # Can be overridden via env var
 
 ################################################################################
@@ -272,7 +272,7 @@ build_docker_image() {
     print_command "    --platform linux/amd64 \\"
     print_command "    --provenance=false \\"
     print_command "    --sbom=false \\"
-    print_command "    -t aws-lab-flask-demo:$IMAGE_TAG \\"
+    print_command "    -t $REPO_NAME:$IMAGE_TAG \\"
     print_command "    $BACKEND_DIR/"
     echo ""
 
@@ -287,7 +287,7 @@ build_docker_image() {
     print_explain "    → Prevents multi-architecture manifest issues"
     print_explain "    → Required for ECR compatibility"
     print_explain ""
-    print_explain "  • -t aws-lab-flask-demo:$IMAGE_TAG:"
+    print_explain "  • -t $REPO_NAME:$IMAGE_TAG:"
     print_explain "    → Tags image with name and version"
     print_explain "    → Format: <name>:<tag>"
     print_explain "    → Tag '$IMAGE_TAG' identifies this build"
@@ -315,7 +315,7 @@ build_docker_image() {
         --platform linux/amd64 \
         --provenance=false \
         --sbom=false \
-        -t aws-lab-flask-demo:$IMAGE_TAG \
+        -t $REPO_NAME:$IMAGE_TAG \
         $BACKEND_DIR/; then
 
         echo ""
@@ -323,11 +323,11 @@ build_docker_image() {
 
         # Show image details
         print_info "Image details:"
-        docker images aws-lab-flask-demo:$IMAGE_TAG --format "table {{.Repository}}\t{{.Tag}}\t{{.Size}}\t{{.CreatedSince}}"
+        docker images $REPO_NAME:$IMAGE_TAG --format "table {{.Repository}}\t{{.Tag}}\t{{.Size}}\t{{.CreatedSince}}"
         echo ""
 
         # Explain image size
-        IMAGE_SIZE=$(docker images aws-lab-flask-demo:$IMAGE_TAG --format "{{.Size}}")
+        IMAGE_SIZE=$(docker images $REPO_NAME:$IMAGE_TAG --format "{{.Size}}")
         print_info "Image size: $IMAGE_SIZE"
         print_explain "  • Base image (python:3.11-slim): ~130 MB"
         print_explain "  • Python dependencies: ~20-30 MB"
@@ -461,8 +461,8 @@ tag_image() {
     echo ""
 
     print_info "Tagging commands:"
-    print_command "docker tag aws-lab-flask-demo:$IMAGE_TAG $ECR_REPO_URI:$IMAGE_TAG"
-    print_command "docker tag aws-lab-flask-demo:$IMAGE_TAG $ECR_REPO_URI:latest"
+    print_command "docker tag $REPO_NAME:$IMAGE_TAG $ECR_REPO_URI:$IMAGE_TAG"
+    print_command "docker tag $REPO_NAME:$IMAGE_TAG $ECR_REPO_URI:latest"
     echo ""
 
     print_explain "Tagging strategy explained:"
@@ -486,14 +486,14 @@ tag_image() {
 
     print_info "Tagging..."
 
-    docker tag aws-lab-flask-demo:$IMAGE_TAG $ECR_REPO_URI:$IMAGE_TAG
-    docker tag aws-lab-flask-demo:$IMAGE_TAG $ECR_REPO_URI:latest
+    docker tag $REPO_NAME:$IMAGE_TAG $ECR_REPO_URI:$IMAGE_TAG
+    docker tag $REPO_NAME:$IMAGE_TAG $ECR_REPO_URI:latest
 
     print_success "Image tagged for ECR"
     echo ""
 
     print_info "Tagged images:"
-    docker images | grep -E "REPOSITORY|aws-lab-flask-demo|$ECR_REPO_URI" | head -10
+    docker images | grep -E "REPOSITORY|$REPO_NAME|$ECR_REPO_URI" | head -10
     echo ""
 
     print_explain "Notice: Multiple tags point to same IMAGE ID (not duplicated)"
