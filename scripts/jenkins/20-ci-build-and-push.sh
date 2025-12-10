@@ -203,9 +203,37 @@ run_tests() {
 
     cd "$PROJECT_ROOT/$BACKEND_DIR"
 
+    # Choose Python interpreter (prefer 3.11 to match Lambda/runtime wheels)
+    if command -v python3.11 >/dev/null 2>&1; then
+        PY_BIN="python3.11"
+    else
+        PY_BIN="python3"
+    fi
+
+    # Recreate venv if missing or interpreter version changed
+    CURRENT_INTERP=""
+    if [ -x ".venv/bin/python" ]; then
+        CURRENT_INTERP=$(.venv/bin/python -c 'import sys; print(f"{sys.version_info.major}.{sys.version_info.minor}")')
+    fi
+    DESIRED_INTERP=$($PY_BIN -c 'import sys; print(f"{sys.version_info.major}.{sys.version_info.minor}")')
+
+    if [ ! -d ".venv" ] || [ "$CURRENT_INTERP" != "$DESIRED_INTERP" ]; then
+        print_info "Creating fresh virtual environment with $PY_BIN (was: ${CURRENT_INTERP:-none})..."
+        rm -rf .venv
+        $PY_BIN -m venv .venv
+    else
+        print_info "Using existing virtual environment (Python $CURRENT_INTERP)"
+    fi
+
+    print_info "Activating virtual environment..."
+    # shellcheck disable=SC1091
+    source .venv/bin/activate
+    print_success "Virtual environment activated"
+
     # Check if requirements.txt exists
     if [ -f "requirements.txt" ]; then
         print_info "Installing Python dependencies..."
+        print_command "pip install -q --upgrade pip"
         print_command "pip install -q -r requirements.txt"
         echo ""
 
@@ -215,6 +243,7 @@ run_tests() {
         print_explain "  • Required for tests to run"
         echo ""
 
+        pip install -q --upgrade pip
         pip install -q -r requirements.txt
 
         print_success "Dependencies installed"

@@ -188,8 +188,10 @@ run_tests() {
         if [ -f "${PROJECT_ROOT}/scripts/local/test-local.sh" ]; then
             if [ "$USE_DEMO" = true ]; then
                 bash "${PROJECT_ROOT}/scripts/local/test-local.sh" --demo
+            elif [ "$USE_PROD" = true ]; then
+                bash "${PROJECT_ROOT}/scripts/local/test-local.sh" --prod
             else
-                bash "${PROJECT_ROOT}/scripts/local/test-local.sh"
+                bash "${PROJECT_ROOT}/scripts/local/test-local.sh" --prod
             fi
         else
             # Run tests directly
