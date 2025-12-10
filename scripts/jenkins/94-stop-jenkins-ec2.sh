@@ -109,6 +109,7 @@ set -e
 
 SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
 PROJECT_ROOT="$(cd "$SCRIPT_DIR/../.." && pwd)"
+source "${SCRIPT_DIR}/env-common.sh"
 
 ################################################################################
 # Helper Functions for Output Formatting
@@ -164,7 +165,7 @@ else
     exit 1
 fi
 
-AWS_REGION="${AWS_REGION:-us-east-1}"
+AWS_REGION="${PIPELINE_AWS_REGION:-${AWS_REGION:-us-east-1}}"
 
 print_header "Stop Jenkins EC2 Instance"
 echo "Environment: $ENVIRONMENT"

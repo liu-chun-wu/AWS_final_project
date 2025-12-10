@@ -99,7 +99,7 @@ fi
 
 # Configuration
 PROJECT_ROOT="$(cd "$(dirname "${BASH_SOURCE[0]}")/../.." && pwd)"
-IMAGE_NAME="aws-lab-flask-demo"
+IMAGE_NAME="${PIPELINE_IMAGE_NAME:-aws-final-project-repo}"
 IMAGE_TAG="local"
 if [ "$USE_DEMO" = true ]; then
     BACKEND_DIR="${PROJECT_ROOT}/demo-backend"

@@ -80,6 +80,7 @@
 - [ ] CHK-P4-02 Jenkinsfile-CI has all required stages (Checkout, Test, Build, Push)
 - [ ] CHK-P4-03 Jenkinsfile-CI parameterized correctly (BACKEND_DIR, BRANCH_NAME)
 - [ ] CHK-P4-04 Jenkinsfile-CI environment variables set (AWS_REGION, ECR_REPO)
+- [ ] CHK-P4-04a Pipeline knobs centralized in `scripts/jenkins/env-common.sh` (image/ECR, region, branch allow list, stacks, SAM configs, GitHub repo, job names)
 - [ ] CHK-P4-05 Jenkinsfile-CD created in jenkins-pipeline-setting/ directory
 - [ ] CHK-P4-06 Jenkinsfile-CD has all required stages (Validate, Deploy, Verify)
 - [ ] CHK-P4-07 Jenkinsfile-CD parameterized correctly (IMAGE_TAG, BACKEND_TYPE)

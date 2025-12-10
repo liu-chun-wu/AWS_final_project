@@ -53,6 +53,7 @@ set -e  # Exit immediately if any command fails
 
 SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
 PROJECT_ROOT="$(cd "$SCRIPT_DIR/../.." && pwd)"
+source "${SCRIPT_DIR}/env-common.sh"
 
 ################################################################################
 # Parse Command-Line Arguments
@@ -81,13 +82,13 @@ else
     exit 1
 fi
 
-AWS_REGION="${AWS_REGION:-us-east-1}"
+AWS_REGION="${PIPELINE_AWS_REGION:-${AWS_REGION:-us-east-1}}"
 
 # Set stack name based on backend type
 if [ "$BACKEND_TYPE" == "demo-backend" ]; then
-    STACK_NAME="flask-demo-backend"
+    STACK_NAME="${PIPELINE_STACK_DEMO:-flask-demo-backend}"
 else
-    STACK_NAME="flask-prod-backend"
+    STACK_NAME="${PIPELINE_STACK_PROD:-flask-prod-backend}"
 fi
 
 ################################################################################

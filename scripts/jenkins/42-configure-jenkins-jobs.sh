@@ -96,6 +96,7 @@ set -e
 
 SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
 PROJECT_ROOT="$(cd "$SCRIPT_DIR/../.." && pwd)"
+source "${SCRIPT_DIR}/env-common.sh"
 
 ################################################################################
 # Helper Functions for Output Formatting
@@ -195,7 +196,7 @@ fi
 TARGET_DESCRIPTION=$([ "$TARGET" = "ec2" ] && echo "EC2" || echo "local")
 TARGET_FLAG="--$TARGET"
 
-GITHUB_REPO="${GITHUB_REPO:-https://github.com/liu-chun-wu/AWS_final_project.git}"
+GITHUB_REPO="${PIPELINE_GITHUB_REPO:-${GITHUB_REPO:-https://github.com/liu-chun-wu/AWS_final_project.git}}"
 
 print_header "Phase 5: Jenkins Jobs Configuration"
 echo "Target Jenkins: $TARGET_DESCRIPTION"
@@ -575,7 +576,7 @@ print_explain "• Trigger: GitHub push to 'Jeffery' branch"
 print_explain "• Parameter: BACKEND_DIR (choose demo-backend or backend)"
 echo ""
 
-CI_JOB_NAME="flask-ci"
+CI_JOB_NAME="${PIPELINE_CI_JOB:-flask-ci}"
 
 # Create CI job XML configuration
 # This is a Pipeline job that reads Jenkinsfile from Git repository
@@ -590,12 +591,12 @@ cat > /tmp/flask-ci-config.xml << 'CI_CONFIG_EOF'
         <hudson.model.ChoiceParameterDefinition>
           <name>BACKEND_DIR</name>
           <description>Which backend to build and test?
-• demo-backend: Flask demo for CI/CD validation
-• backend: Production service</description>
+• demo: Flask demo for CI/CD validation
+• production: Production service</description>
           <choices class="java.util.Arrays$ArrayList">
             <a class="string-array">
-              <string>demo-backend</string>
-              <string>backend</string>
+              <string>demo</string>
+              <string>production</string>
             </a>
           </choices>
         </hudson.model.ChoiceParameterDefinition>
@@ -645,6 +646,7 @@ echo ""
 
 # Replace placeholder with actual GitHub repo URL
 sed -i.bak "s|GITHUB_REPO_PLACEHOLDER|$GITHUB_REPO|g" /tmp/flask-ci-config.xml
+sed -i.bak "s|Jeffery|${PIPELINE_BRANCH_ALLOWED:-Jeffery}|g" /tmp/flask-ci-config.xml
 rm -f /tmp/flask-ci-config.xml.bak
 
 # Check if job already exists
@@ -716,7 +718,7 @@ print_explain "  - BACKEND_DIR: Choose which backend to deploy"
 print_explain "  - IMAGE_TAG: Specific ECR image tag (or auto-detect latest)"
 echo ""
 
-CD_JOB_NAME="flask-cd"
+CD_JOB_NAME="${PIPELINE_CD_JOB:-flask-cd}"
 
 # Create CD job XML configuration
 cat > /tmp/flask-cd-config.xml << 'CD_CONFIG_EOF'
@@ -730,12 +732,12 @@ cat > /tmp/flask-cd-config.xml << 'CD_CONFIG_EOF'
         <hudson.model.ChoiceParameterDefinition>
           <name>BACKEND_DIR</name>
           <description>Which backend to deploy?
-• demo-backend: Deploy to flask-demo-backend stack
-• backend: Deploy to flask-prod-backend stack</description>
+• demo: Deploy to demo stack
+• production: Deploy to prod stack</description>
           <choices class="java.util.Arrays$ArrayList">
             <a class="string-array">
-              <string>demo-backend</string>
-              <string>backend</string>
+              <string>demo</string>
+              <string>production</string>
             </a>
           </choices>
         </hudson.model.ChoiceParameterDefinition>
@@ -781,6 +783,7 @@ echo ""
 
 # Replace placeholder with actual GitHub repo URL
 sed -i.bak "s|GITHUB_REPO_PLACEHOLDER|$GITHUB_REPO|g" /tmp/flask-cd-config.xml
+sed -i.bak "s|Jeffery|${PIPELINE_BRANCH_ALLOWED:-Jeffery}|g" /tmp/flask-cd-config.xml
 rm -f /tmp/flask-cd-config.xml.bak
 
 # Check if job already exists
@@ -993,7 +996,7 @@ echo "• Jenkins Console: $JENKINS_URL"
 echo "• CI job builds: $JENKINS_URL/job/$CI_JOB_NAME/"
 echo "• CD job builds: $JENKINS_URL/job/$CD_JOB_NAME/"
 echo "• CloudWatch Logs:"
-echo "    aws logs tail /aws/lambda/flask-demo-backend-FlaskDemoFunction-* --follow"
+echo "    aws logs tail /aws/lambda/${PIPELINE_STACK_DEMO:-flask-demo-backend}-FlaskDemoFunction-* --follow"
 echo ""
 echo ""
 

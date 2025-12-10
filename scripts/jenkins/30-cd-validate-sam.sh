@@ -58,9 +58,10 @@ set -e  # Exit immediately if any command fails
 
 SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
 PROJECT_ROOT="$(cd "$SCRIPT_DIR/../.." && pwd)"
+source "${SCRIPT_DIR}/env-common.sh"
 
-AWS_REGION="${AWS_REGION:-us-east-1}"
-REPO_NAME="aws-lab-flask-demo"
+AWS_REGION="${PIPELINE_AWS_REGION:-${AWS_REGION:-us-east-1}}"
+REPO_NAME="${PIPELINE_ECR_REPO:-aws-final-project-repo}"
 
 ################################################################################
 # Helper Functions for Output Formatting

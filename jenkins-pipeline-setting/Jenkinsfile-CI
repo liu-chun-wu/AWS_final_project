@@ -4,16 +4,14 @@ pipeline {
     parameters {
         choice(
             name: 'BACKEND_DIR',
-            choices: ['demo-backend', 'backend'],
-            description: 'Which backend to build and test?\n• demo-backend: Flask demo for CI/CD validation\n• backend: Production service'
+            choices: ['demo', 'production'],
+            description: 'Which backend to build and test?'
         )
     }
 
     environment {
-        IMAGE_NAME = 'aws-lab-flask-demo'
+        // Minimal upfront defaults; real values loaded in "Load Pipeline Config"
         IMAGE_TAG = "${BUILD_NUMBER}"
-        BACKEND = "${params.BACKEND_DIR ?: 'demo-backend'}"
-        AWS_REGION = 'us-east-1'
         TOOLS_PATH = "${env.WORKSPACE}/.aws-cli/bin:/usr/local/bin:/usr/bin:/bin"
     }
 
@@ -23,6 +21,39 @@ pipeline {
                 echo 'Checking out source code from repository...'
                 checkout scm
                 echo 'Source code checked out successfully'
+            }
+        }
+
+        stage('Load Pipeline Config') {
+            steps {
+                script {
+                    def cfg = sh(script: '''
+                        set -a
+                        [ -f scripts/jenkins/env-common.sh ] && source scripts/jenkins/env-common.sh
+                        env | grep '^PIPELINE_' || true
+                    ''', returnStdout: true).trim()
+                    if (cfg) {
+                        cfg.split("\\n").each { line ->
+                            if (!line) return
+                            def idx = line.indexOf('=')
+                            if (idx > 0) {
+                                def k = line.substring(0, idx)
+                                def v = line.substring(idx + 1)
+                                env."${k}" = v
+                            }
+                        }
+                    }
+                    def backendChoice = params.BACKEND_DIR ?: 'demo'
+                    env.BACKEND = (backendChoice == 'production') ? 'backend' : 'demo-backend'
+                    env.IMAGE_NAME = env.PIPELINE_IMAGE_NAME ?: 'aws-final-project-repo'
+                    env.AWS_REGION = env.PIPELINE_AWS_REGION ?: 'us-east-1'
+                    env.BRANCH_ALLOWED = env.PIPELINE_BRANCH_ALLOWED ?: 'Jeffery'
+                    echo "Loaded pipeline config:"
+                    echo "  image=${env.IMAGE_NAME}"
+                    echo "  region=${env.AWS_REGION}"
+                    echo "  branch=${env.BRANCH_ALLOWED}"
+                    echo "  backend=${env.BACKEND} (choice=${backendChoice})"
+                }
             }
         }
 
@@ -37,15 +68,15 @@ pipeline {
                     echo "Backend directory: ${env.BACKEND}"
                     echo ""
 
-                    if (!branchName.contains('Jeffery')) {
+                    if (!branchName.contains(env.BRANCH_ALLOWED)) {
                         currentBuild.result = 'NOT_BUILT'
                         error("❌ This CI pipeline is designed for the Jeffery branch only!\n" +
                               "   Current branch: ${branchName}\n" +
-                              "   Expected branch: Jeffery\n\n" +
+                              "   Expected branch: ${env.BRANCH_ALLOWED}\n\n" +
                               "   For main branch deployment, use Jenkinsfile-CD instead.")
                     }
 
-                    echo "✅ Jeffery branch validated"
+                    echo "✅ Branch validated (${env.BRANCH_ALLOWED})"
                     echo "   Pipeline mode: CI ONLY (Continuous Integration)"
                     echo "   - Will run: Checkout, Setup, Install, Test, Build"
                     echo "   - Will skip: AWS deployment (no ECR push, no Lambda deploy)"

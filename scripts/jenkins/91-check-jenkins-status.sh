@@ -110,6 +110,7 @@ set -e
 
 SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
 PROJECT_ROOT="$(cd "$SCRIPT_DIR/../.." && pwd)"
+source "${SCRIPT_DIR}/env-common.sh"
 
 ################################################################################
 # Helper Functions for Output Formatting
@@ -165,7 +166,7 @@ else
     exit 1
 fi
 
-AWS_REGION="${AWS_REGION:-us-east-1}"
+AWS_REGION="${PIPELINE_AWS_REGION:-${AWS_REGION:-us-east-1}}"
 
 print_header "Jenkins EC2 Status Check"
 echo "Environment: $ENVIRONMENT"
@@ -658,7 +659,7 @@ echo "  Configure Jenkins CI/CD jobs:"
 echo "    ./scripts/jenkins/42-configure-jenkins-jobs.sh --$ENVIRONMENT"
 echo ""
 echo "  View CloudWatch logs:"
-echo "    aws logs tail /aws/lambda/flask-demo-backend-FlaskDemoFunction-* --follow"
+echo "    aws logs tail /aws/lambda/${PIPELINE_STACK_DEMO:-flask-demo-backend}-FlaskDemoFunction-* --follow"
 echo ""
 
 print_header "Status Check Complete"

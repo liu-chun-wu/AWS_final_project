@@ -5,7 +5,7 @@
 #
 # What it removes (per selected scope):
 #   - CloudFormation/SAM stack(s): flask-demo-backend, flask-prod-backend
-#   - ECR repository: aws-lab-flask-demo (force deletes images)
+#   - ECR repository: ${PIPELINE_ECR_REPO:-aws-final-project-repo} (force deletes images)
 #   - Optional: Jenkins EC2 instance info file cleanup (local only)
 #
 # Requirements:
@@ -21,11 +21,14 @@
 #
 set -euo pipefail
 
-REGION="us-east-1"
+SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
+source "${SCRIPT_DIR}/env-common.sh"
+
+REGION="${PIPELINE_AWS_REGION:-us-east-1}"
 SCOPE=""
-ECR_REPO="aws-lab-flask-demo"
-DEMO_STACK="flask-demo-backend"
-PROD_STACK="flask-prod-backend"
+ECR_REPO="${PIPELINE_ECR_REPO:-aws-final-project-repo}"
+DEMO_STACK="${PIPELINE_STACK_DEMO:-flask-demo-backend}"
+PROD_STACK="${PIPELINE_STACK_PROD:-flask-prod-backend}"
 
 usage() {
   cat <<EOF
