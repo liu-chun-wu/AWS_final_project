@@ -1,0 +1,21 @@
+# SAM CLI configuration file for easier deployments
+# This file stores default parameters for 'sam deploy'
+
+version = 0.1
+
+[default]
+[default.deploy]
+[default.deploy.parameters]
+stack_name = "flask-demo-backend"
+s3_prefix = "flask-demo-backend"
+region = "us-east-1"
+confirm_changeset = true
+capabilities = "CAPABILITY_IAM"
+image_repositories = []
+# Add your ECR repository here when deploying:
+# image_repositories = ["FlaskDemoFunction=<account-id>.dkr.ecr.us-east-1.amazonaws.com/aws-lab-flask-demo"]
+resolve_s3 = true
+disable_rollback = true
+
+[default.global.parameters]
+region = "us-east-1"
