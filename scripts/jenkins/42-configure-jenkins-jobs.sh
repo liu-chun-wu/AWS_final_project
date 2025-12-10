@@ -200,7 +200,7 @@ GITHUB_REPO="${PIPELINE_GITHUB_REPO:-${GITHUB_REPO:-https://github.com/liu-chun-
 
 print_header "Phase 5: Jenkins Jobs Configuration"
 echo "Target Jenkins: $TARGET_DESCRIPTION"
-echo "Environment: $ENVIRONMENT"
+echo "Environment: ${ENVIRONMENT:-default}"
 echo "GitHub Repository: $GITHUB_REPO"
 echo ""
 
@@ -214,10 +214,10 @@ if [ "$TARGET" = "ec2" ]; then
     print_info "What are we doing?"
     print_explain "Loading instance metadata saved by script 41-setup-jenkins-ec2.sh"
     print_explain "This file contains: Instance ID, Public IP, Security Group, etc."
-    print_explain "File location: .jenkins-ec2-$ENVIRONMENT.info (in project root)"
+    print_explain "File location: .jenkins-ec2${ENVIRONMENT:+-$ENVIRONMENT}.info (in project root)"
     echo ""
 
-    INSTANCE_INFO_FILE="$PROJECT_ROOT/.jenkins-ec2-$ENVIRONMENT.info"
+    INSTANCE_INFO_FILE="$PROJECT_ROOT/.jenkins-ec2${ENVIRONMENT:+-$ENVIRONMENT}.info"
 
     if [ ! -f "$INSTANCE_INFO_FILE" ]; then
         print_error "Instance information file not found: $INSTANCE_INFO_FILE"
@@ -225,7 +225,7 @@ if [ "$TARGET" = "ec2" ]; then
         print_warning "This means Jenkins EC2 instance hasn't been created yet."
         print_warning "Please run script 41 first to provision Jenkins on EC2:"
         echo ""
-        echo "  ./scripts/jenkins/41-setup-jenkins-ec2.sh --$ENVIRONMENT"
+        echo "  ./scripts/jenkins/41-setup-jenkins-ec2.sh ${ENVIRONMENT:+--$ENVIRONMENT}"
         echo ""
         exit 1
     fi

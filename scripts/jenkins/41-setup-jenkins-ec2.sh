@@ -116,30 +116,18 @@ if [ "$1" == "--demo" ]; then
     ENVIRONMENT="demo"
 elif [ "$1" == "--prod" ]; then
     ENVIRONMENT="prod"
-else
-    echo "╔════════════════════════════════════════════════════════════════╗"
-    echo "║  ERROR: Environment required                                   ║"
-    echo "╚════════════════════════════════════════════════════════════════╝"
-    echo ""
+elif [ -n "$1" ]; then
+    echo "Unrecognized option: $1"
     echo "Usage: $0 [--demo|--prod]"
-    echo ""
-    echo "Options:"
-    echo "  --demo  Setup Jenkins for demo environment"
-    echo "  --prod  Setup Jenkins for production environment"
-    echo ""
-    echo "What this does:"
-    echo "  • Launches EC2 instance with Jenkins"
-    echo "  • Installs Docker, AWS CLI, SAM CLI"
-    echo "  • Configures security groups"
-    echo "  • Returns Jenkins admin password"
-    exit 1
+    echo "Flags are optional; defaults will be used if omitted."
 fi
 
 AWS_REGION="${PIPELINE_AWS_REGION:-${AWS_REGION:-us-east-1}}"
 # Default to a roomier instance; override with INSTANCE_TYPE env if desired
 INSTANCE_TYPE="${INSTANCE_TYPE:-t3.medium}"
-INSTANCE_NAME="jenkins-ci-cd-${ENVIRONMENT}"
-SECURITY_GROUP_NAME="jenkins-ec2-sg-${ENVIRONMENT}"
+BASE_NAME="aws-final-project-jenkins"
+INSTANCE_NAME="${BASE_NAME}${ENVIRONMENT:+-$ENVIRONMENT}"
+SECURITY_GROUP_NAME="jenkins-ec2-sg${ENVIRONMENT:+-$ENVIRONMENT}"
 KEY_NAME="${KEY_NAME:-vockey}"
 
 ################################################################################
@@ -183,7 +171,7 @@ show_introduction() {
     echo ""
 
     print_info "Configuration:"
-    echo -e "  ${BLUE}Environment:${NC}       $ENVIRONMENT"
+    echo -e "  ${BLUE}Environment:${NC}       ${ENVIRONMENT:-default}"
     echo -e "  ${BLUE}Instance Type:${NC}     $INSTANCE_TYPE (recommended: t3.medium 2 vCPU, 4GB RAM)"
     echo -e "  ${BLUE}Instance Name:${NC}     $INSTANCE_NAME"
     echo -e "  ${BLUE}Region:${NC}            $AWS_REGION"
@@ -623,6 +611,8 @@ launch_instance() {
         print_explain "  • --user-data: Runs installation script on first boot"
         echo ""
 
+        TAG_ENV_VALUE="${ENVIRONMENT:-default}"
+
         INSTANCE_ID=$(aws ec2 run-instances \
             --region "$AWS_REGION" \
             --image-id "$AMI_ID" \
@@ -632,7 +622,7 @@ launch_instance() {
             $INSTANCE_PROFILE_PARAM \
             --user-data file:///tmp/jenkins-userdata.sh \
             --block-device-mappings '[{"DeviceName":"/dev/xvda","Ebs":{"VolumeSize":20,"VolumeType":"gp3","DeleteOnTermination":true}}]' \
-            --tag-specifications "ResourceType=instance,Tags=[{Key=Name,Value=$INSTANCE_NAME},{Key=Environment,Value=$ENVIRONMENT},{Key=Purpose,Value=Jenkins-CI-CD}]" \
+            --tag-specifications "ResourceType=instance,Tags=[{Key=Name,Value=$INSTANCE_NAME},{Key=Environment,Value=$TAG_ENV_VALUE},{Key=Purpose,Value=Jenkins-CI-CD}]" \
             --query 'Instances[0].InstanceId' \
             --output text)
 
@@ -768,11 +758,11 @@ retrieve_password() {
 save_info() {
     print_header "Step 9: Saving Instance Information"
 
-    INSTANCE_INFO_FILE="$PROJECT_ROOT/.jenkins-ec2-$ENVIRONMENT.info"
+    INSTANCE_INFO_FILE="$PROJECT_ROOT/.jenkins-ec2${ENVIRONMENT:+-$ENVIRONMENT}.info"
 
     cat > "$INSTANCE_INFO_FILE" << EOF
 # Jenkins EC2 Instance Information
-# Environment: $ENVIRONMENT
+# Environment: ${ENVIRONMENT:-default}
 # Created: $(date)
 
 INSTANCE_ID=$INSTANCE_ID

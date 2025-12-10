@@ -1,0 +1,11 @@
+# Jenkins EC2 Instance Information
+# Environment: default
+# Created: 2025年12月10日 星期三 11時44分29秒 CST
+
+INSTANCE_ID=i-0fe69c7ba2794fdb1
+PUBLIC_IP=3.235.183.79
+PRIVATE_IP=172.31.66.138
+REGION=us-east-1
+SECURITY_GROUP_ID=sg-095f96be8c8bd3b82
+KEY_NAME=vockey
+INITIAL_PASSWORD=

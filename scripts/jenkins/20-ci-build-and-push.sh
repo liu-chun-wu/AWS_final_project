@@ -61,9 +61,11 @@ BACKEND_TYPE=""
 if [ "$1" == "--demo" ]; then
     BACKEND_TYPE="demo-backend"
     BACKEND_DIR="demo-backend"
+    TAG_PREFIX="${PIPELINE_TAG_PREFIX_DEMO:-demo}"
 elif [ "$1" == "--prod" ]; then
     BACKEND_TYPE="prod-backend"
     BACKEND_DIR="backend"
+    TAG_PREFIX="${PIPELINE_TAG_PREFIX_PROD:-prod}"
 else
     echo "╔════════════════════════════════════════════════════════════════╗"
     echo "║  ERROR: Backend type required                                  ║"
@@ -92,7 +94,17 @@ source "${SCRIPT_DIR}/env-common.sh"
 
 AWS_REGION="${PIPELINE_AWS_REGION:-${AWS_REGION:-us-east-1}}"
 REPO_NAME="${PIPELINE_ECR_REPO:-aws-final-project-repo}"
-IMAGE_TAG="${IMAGE_TAG:-manual-test}"  # Can be overridden via env var
+
+# Derive image tags with environment prefix
+IMAGE_TAG_BASE="${IMAGE_TAG:-manual-test}"
+TAG_PREFIX="${TAG_PREFIX:-${PIPELINE_TAG_PREFIX_DEMO:-demo}}"
+if [[ "$IMAGE_TAG_BASE" != ${TAG_PREFIX}-* ]]; then
+    IMAGE_TAG="${TAG_PREFIX}-${IMAGE_TAG_BASE}"
+else
+    IMAGE_TAG="${IMAGE_TAG_BASE}"
+fi
+IMAGE_TAG_LATEST="${TAG_PREFIX}-latest"
+IMAGE_TAG_JENKINS="${TAG_PREFIX}-jenkins-build"
 
 ################################################################################
 # Helper Functions for Output Formatting
@@ -462,7 +474,8 @@ tag_image() {
 
     print_info "Tagging commands:"
     print_command "docker tag $REPO_NAME:$IMAGE_TAG $ECR_REPO_URI:$IMAGE_TAG"
-    print_command "docker tag $REPO_NAME:$IMAGE_TAG $ECR_REPO_URI:latest"
+    print_command "docker tag $REPO_NAME:$IMAGE_TAG $ECR_REPO_URI:$IMAGE_TAG_LATEST"
+    print_command "docker tag $REPO_NAME:$IMAGE_TAG $ECR_REPO_URI:$IMAGE_TAG_JENKINS"
     echo ""
 
     print_explain "Tagging strategy explained:"
@@ -471,10 +484,12 @@ tag_image() {
     print_explain "    → Allows tracking specific builds"
     print_explain "    → Can rollback to this version if needed"
     print_explain ""
-    print_explain "  • Tag 2: $ECR_REPO_URI:latest"
-    print_explain "    → Generic 'latest' tag (always points to newest)"
-    print_explain "    → Convenient for development/testing"
-    print_explain "    → Not recommended for production (use specific versions)"
+    print_explain "  • Tag 2: $ECR_REPO_URI:$IMAGE_TAG_LATEST"
+    print_explain "    → Environment-specific 'latest' (demo-latest or prod-latest)"
+    print_explain "    → Convenient for fast testing"
+    print_explain ""
+    print_explain "  • Tag 3: $ECR_REPO_URI:$IMAGE_TAG_JENKINS"
+    print_explain "    → Traceability tag for Jenkins/manual CI runs"
     echo ""
 
     print_info "Understanding Docker tags:"
@@ -487,7 +502,8 @@ tag_image() {
     print_info "Tagging..."
 
     docker tag $REPO_NAME:$IMAGE_TAG $ECR_REPO_URI:$IMAGE_TAG
-    docker tag $REPO_NAME:$IMAGE_TAG $ECR_REPO_URI:latest
+    docker tag $REPO_NAME:$IMAGE_TAG $ECR_REPO_URI:$IMAGE_TAG_LATEST
+    docker tag $REPO_NAME:$IMAGE_TAG $ECR_REPO_URI:$IMAGE_TAG_JENKINS
 
     print_success "Image tagged for ECR"
     echo ""
@@ -513,7 +529,8 @@ push_image() {
 
     print_info "Push commands:"
     print_command "docker push $ECR_REPO_URI:$IMAGE_TAG"
-    print_command "docker push $ECR_REPO_URI:latest"
+    print_command "docker push $ECR_REPO_URI:$IMAGE_TAG_LATEST"
+    print_command "docker push $ECR_REPO_URI:$IMAGE_TAG_JENKINS"
     echo ""
 
     print_explain "What happens during push:"
@@ -543,18 +560,29 @@ push_image() {
     fi
 
     echo ""
-    print_info "Pushing latest tag..."
+    print_info "Pushing env-latest tag..."
     echo ""
 
-    if docker push $ECR_REPO_URI:latest; then
-        print_success "Pushed: $ECR_REPO_URI:latest"
+    if docker push $ECR_REPO_URI:$IMAGE_TAG_LATEST; then
+        print_success "Pushed: $ECR_REPO_URI:$IMAGE_TAG_LATEST"
     else
-        print_error "Push failed for tag: latest"
+        print_error "Push failed for tag: $IMAGE_TAG_LATEST"
         exit 1
     fi
 
     echo ""
-    print_success "Both tags pushed to ECR successfully"
+    print_info "Pushing Jenkins trace tag..."
+    echo ""
+
+    if docker push $ECR_REPO_URI:$IMAGE_TAG_JENKINS; then
+        print_success "Pushed: $ECR_REPO_URI:$IMAGE_TAG_JENKINS"
+    else
+        print_error "Push failed for tag: $IMAGE_TAG_JENKINS"
+        exit 1
+    fi
+
+    echo ""
+    print_success "All tags pushed to ECR successfully"
     echo ""
 }
 

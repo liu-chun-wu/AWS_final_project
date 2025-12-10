@@ -45,14 +45,21 @@ pipeline {
                     }
                     def backendChoice = params.BACKEND_DIR ?: 'demo'
                     env.BACKEND = (backendChoice == 'production') ? 'backend' : 'demo-backend'
+                    env.TAG_PREFIX = (backendChoice == 'production') ? (env.PIPELINE_TAG_PREFIX_PROD ?: 'prod') : (env.PIPELINE_TAG_PREFIX_DEMO ?: 'demo')
                     env.IMAGE_NAME = env.PIPELINE_IMAGE_NAME ?: 'aws-final-project-repo'
                     env.AWS_REGION = env.PIPELINE_AWS_REGION ?: 'us-east-1'
                     env.BRANCH_ALLOWED = env.PIPELINE_BRANCH_ALLOWED ?: 'Jeffery'
+                    // Derive environment-scoped image tags
+                    env.IMAGE_TAG = "${env.TAG_PREFIX}-${BUILD_NUMBER}"
+                    env.IMAGE_TAG_LATEST = "${env.TAG_PREFIX}-latest"
+                    env.IMAGE_TAG_JENKINS = "${env.TAG_PREFIX}-jenkins-build"
                     echo "Loaded pipeline config:"
                     echo "  image=${env.IMAGE_NAME}"
                     echo "  region=${env.AWS_REGION}"
                     echo "  branch=${env.BRANCH_ALLOWED}"
                     echo "  backend=${env.BACKEND} (choice=${backendChoice})"
+                    echo "  tag prefix=${env.TAG_PREFIX}"
+                    echo "  image tag=${env.IMAGE_TAG}"
                 }
             }
         }
@@ -208,8 +215,8 @@ pipeline {
                     fi
                     ECR_REGISTRY="${ACCOUNT_ID}.dkr.ecr.${AWS_REGION}.amazonaws.com"
                     ECR_IMAGE="${ECR_REGISTRY}/${IMAGE_NAME}:${IMAGE_TAG}"
-                    ECR_IMAGE_LATEST="${ECR_REGISTRY}/${IMAGE_NAME}:latest"
-                    ECR_IMAGE_JENKINS="${ECR_REGISTRY}/${IMAGE_NAME}:jenkins-build"
+                    ECR_IMAGE_LATEST="${ECR_REGISTRY}/${IMAGE_NAME}:${IMAGE_TAG_LATEST}"
+                    ECR_IMAGE_JENKINS="${ECR_REGISTRY}/${IMAGE_NAME}:${IMAGE_TAG_JENKINS}"
 
                     # Ensure repo exists
                     aws ecr describe-repositories --repository-name ${IMAGE_NAME} --region ${AWS_REGION} >/dev/null 2>&1 || \

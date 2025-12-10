@@ -52,6 +52,7 @@ pipeline {
                     env.BRANCH_ALLOWED = env.PIPELINE_BRANCH_ALLOWED ?: 'Jeffery'
                     def backendChoice = params.BACKEND_DIR ?: 'demo'
                     env.BACKEND = (backendChoice == 'production') ? 'backend' : 'demo-backend'
+                    env.TAG_PREFIX = backendChoice == 'production' ? (env.PIPELINE_TAG_PREFIX_PROD ?: 'prod') : (env.PIPELINE_TAG_PREFIX_DEMO ?: 'demo')
                     env.STACK_NAME = (backendChoice == 'production') ? (env.PIPELINE_STACK_PROD ?: 'flask-prod-backend') : (env.PIPELINE_STACK_DEMO ?: 'flask-demo-backend')
                     env.SAM_CONFIG = (backendChoice == 'production') ? (env.PIPELINE_SAM_CONFIG_PROD ?: 'samconfig-prod.toml') : (env.PIPELINE_SAM_CONFIG_DEMO ?: 'samconfig-demo.toml')
                     echo "Loaded pipeline config:"
@@ -59,6 +60,7 @@ pipeline {
                     echo "  region=${env.AWS_REGION}"
                     echo "  branch=${env.BRANCH_ALLOWED}"
                     echo "  backend=${env.BACKEND} (choice=${backendChoice})"
+                    echo "  tag prefix=${env.TAG_PREFIX}"
                     echo "  stack=${env.STACK_NAME}"
                     echo "  sam config=${env.SAM_CONFIG}"
                 }
@@ -170,6 +172,9 @@ pipeline {
 
                     if (params.IMAGE_TAG?.trim()) {
                         env.DEPLOY_IMAGE_TAG = params.IMAGE_TAG
+                        if (!env.DEPLOY_IMAGE_TAG.startsWith(env.TAG_PREFIX + "-")) {
+                            error("❌ Provided IMAGE_TAG '${env.DEPLOY_IMAGE_TAG}' must start with '${env.TAG_PREFIX}-' for ${env.BACKEND}")
+                        }
                         echo "✅ Using explicitly specified image tag: ${env.DEPLOY_IMAGE_TAG}"
                     } else {
                         echo "No IMAGE_TAG parameter provided. Auto-detecting latest image from ECR..."
@@ -195,8 +200,8 @@ pipeline {
                                 IMAGE_TAG=$(aws ecr describe-images \
                                     --repository-name ${IMAGE_NAME} \
                                     --region ${AWS_REGION} \
-                                    --query 'sort_by(imageDetails,&imagePushedAt)[-1].imageTags[0]' \
-                                    --output text 2>/dev/null)
+                                    --query "reverse(sort_by(imageDetails,&imagePushedAt))[].imageTags[]" \
+                                    --output text 2>/dev/null | tr '\t' '\n' | grep \"^${TAG_PREFIX}-\" | head -1)
 
                                 STATUS=$?
                                 if [ $STATUS -ne 0 ]; then
