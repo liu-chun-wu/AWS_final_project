@@ -10,12 +10,8 @@ pipeline {
     }
 
     environment {
-        // Defaults are centralized in scripts/jenkins/env-common.sh; these are fallbacks.
-        IMAGE_NAME = "${PIPELINE_IMAGE_NAME ?: 'aws-lab-flask-demo'}"
+        // Minimal upfront defaults; real values loaded in "Load Pipeline Config"
         IMAGE_TAG = "${BUILD_NUMBER}"
-        BACKEND   = "${params.BACKEND_DIR ?: 'demo-backend'}"
-        AWS_REGION = "${PIPELINE_AWS_REGION ?: 'us-east-1'}"
-        BRANCH_ALLOWED = "${PIPELINE_BRANCH_ALLOWED ?: 'Jeffery'}"
         TOOLS_PATH = "${env.WORKSPACE}/.aws-cli/bin:/usr/local/bin:/usr/bin:/bin"
     }
 
@@ -47,10 +43,15 @@ pipeline {
                             }
                         }
                     }
-                    env.IMAGE_NAME = env.PIPELINE_IMAGE_NAME ?: env.IMAGE_NAME ?: 'aws-lab-flask-demo'
-                    env.AWS_REGION = env.PIPELINE_AWS_REGION ?: env.AWS_REGION ?: 'us-east-1'
+                    env.BACKEND = params.BACKEND_DIR ?: 'demo-backend'
+                    env.IMAGE_NAME = env.PIPELINE_IMAGE_NAME ?: 'aws-lab-flask-demo'
+                    env.AWS_REGION = env.PIPELINE_AWS_REGION ?: 'us-east-1'
                     env.BRANCH_ALLOWED = env.PIPELINE_BRANCH_ALLOWED ?: 'Jeffery'
-                    echo "Loaded pipeline config: image=${env.IMAGE_NAME}, region=${env.AWS_REGION}, branch=${env.BRANCH_ALLOWED}"
+                    echo "Loaded pipeline config:"
+                    echo "  image=${env.IMAGE_NAME}"
+                    echo "  region=${env.AWS_REGION}"
+                    echo "  branch=${env.BRANCH_ALLOWED}"
+                    echo "  backend=${env.BACKEND}"
                 }
             }
         }

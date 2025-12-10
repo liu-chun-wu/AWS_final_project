@@ -15,14 +15,8 @@ pipeline {
     }
 
     environment {
-        // Central defaults live in scripts/jenkins/env-common.sh; these are fallbacks.
-        IMAGE_NAME = "${PIPELINE_IMAGE_NAME ?: 'aws-lab-flask-demo'}"
-        AWS_REGION = "${PIPELINE_AWS_REGION ?: 'us-east-1'}"
-        BRANCH_ALLOWED = "${PIPELINE_BRANCH_ALLOWED ?: 'Jeffery'}"
-        BACKEND = "${params.BACKEND_DIR ?: 'demo-backend'}"
+        // Minimal upfront defaults; real values loaded in "Load Pipeline Config"
         TOOLS_PATH = "${env.WORKSPACE}/.aws-cli/bin:${env.WORKSPACE}/.sam-cli/bin:/usr/local/bin:/usr/bin:/bin"
-        SAM_CONFIG = "${params.BACKEND_DIR == 'backend' ? (PIPELINE_SAM_CONFIG_PROD ?: 'samconfig-prod.toml') : (PIPELINE_SAM_CONFIG_DEMO ?: 'samconfig-demo.toml')}"
-        STACK_NAME = "${params.BACKEND_DIR == 'backend' ? (PIPELINE_STACK_PROD ?: 'flask-prod-backend') : (PIPELINE_STACK_DEMO ?: 'flask-demo-backend')}"
     }
 
     stages {
@@ -53,8 +47,8 @@ pipeline {
                             }
                         }
                     }
-                    env.IMAGE_NAME = env.PIPELINE_IMAGE_NAME ?: env.IMAGE_NAME ?: 'aws-lab-flask-demo'
-                    env.AWS_REGION = env.PIPELINE_AWS_REGION ?: env.AWS_REGION ?: 'us-east-1'
+                    env.IMAGE_NAME = env.PIPELINE_IMAGE_NAME ?: 'aws-lab-flask-demo'
+                    env.AWS_REGION = env.PIPELINE_AWS_REGION ?: 'us-east-1'
                     env.BRANCH_ALLOWED = env.PIPELINE_BRANCH_ALLOWED ?: 'Jeffery'
                     def backendDir = params.BACKEND_DIR ?: 'demo-backend'
                     env.BACKEND = backendDir
