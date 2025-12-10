@@ -21,11 +21,14 @@
 #
 set -euo pipefail
 
-REGION="us-east-1"
+SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
+source "${SCRIPT_DIR}/env-common.sh"
+
+REGION="${PIPELINE_AWS_REGION:-us-east-1}"
 SCOPE=""
-ECR_REPO="aws-lab-flask-demo"
-DEMO_STACK="flask-demo-backend"
-PROD_STACK="flask-prod-backend"
+ECR_REPO="${PIPELINE_ECR_REPO:-aws-lab-flask-demo}"
+DEMO_STACK="${PIPELINE_STACK_DEMO:-flask-demo-backend}"
+PROD_STACK="${PIPELINE_STACK_PROD:-flask-prod-backend}"
 
 usage() {
   cat <<EOF

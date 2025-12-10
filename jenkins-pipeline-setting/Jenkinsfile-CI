@@ -26,6 +26,33 @@ pipeline {
             }
         }
 
+        stage('Load Pipeline Config') {
+            steps {
+                script {
+                    def cfg = sh(script: '''
+                        set -a
+                        [ -f scripts/jenkins/env-common.sh ] && source scripts/jenkins/env-common.sh
+                        env | grep '^PIPELINE_' || true
+                    ''', returnStdout: true).trim()
+                    if (cfg) {
+                        cfg.split("\\n").each { line ->
+                            if (!line) return
+                            def idx = line.indexOf('=')
+                            if (idx > 0) {
+                                def k = line.substring(0, idx)
+                                def v = line.substring(idx + 1)
+                                env."${k}" = v
+                            }
+                        }
+                    }
+                    env.IMAGE_NAME = env.PIPELINE_IMAGE_NAME ?: env.IMAGE_NAME ?: 'aws-lab-flask-demo'
+                    env.AWS_REGION = env.PIPELINE_AWS_REGION ?: env.AWS_REGION ?: 'us-east-1'
+                    env.BRANCH_ALLOWED = env.PIPELINE_BRANCH_ALLOWED ?: 'Jeffery'
+                    echo "Loaded pipeline config: image=${env.IMAGE_NAME}, region=${env.AWS_REGION}, branch=${env.BRANCH_ALLOWED}"
+                }
+            }
+        }
+
         stage('Validate Jeffery Branch') {
             steps {
                 script {
@@ -37,15 +64,15 @@ pipeline {
                     echo "Backend directory: ${env.BACKEND}"
                     echo ""
 
-                    if (!branchName.contains('Jeffery')) {
+                    if (!branchName.contains(env.BRANCH_ALLOWED)) {
                         currentBuild.result = 'NOT_BUILT'
                         error("❌ This CI pipeline is designed for the Jeffery branch only!\n" +
                               "   Current branch: ${branchName}\n" +
-                              "   Expected branch: Jeffery\n\n" +
+                              "   Expected branch: ${env.BRANCH_ALLOWED}\n\n" +
                               "   For main branch deployment, use Jenkinsfile-CD instead.")
                     }
 
-                    echo "✅ Jeffery branch validated"
+                    echo "✅ Branch validated (${env.BRANCH_ALLOWED})"
                     echo "   Pipeline mode: CI ONLY (Continuous Integration)"
                     echo "   - Will run: Checkout, Setup, Install, Test, Build"
                     echo "   - Will skip: AWS deployment (no ECR push, no Lambda deploy)"

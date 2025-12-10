@@ -86,8 +86,12 @@ else
     exit 1
 fi
 
-AWS_REGION="${AWS_REGION:-us-east-1}"
-REPO_NAME="aws-lab-flask-demo"
+SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
+PROJECT_ROOT="$(cd "$SCRIPT_DIR/../.." && pwd)"
+source "${SCRIPT_DIR}/env-common.sh"
+
+AWS_REGION="${PIPELINE_AWS_REGION:-${AWS_REGION:-us-east-1}}"
+REPO_NAME="${PIPELINE_ECR_REPO:-aws-lab-flask-demo}"
 IMAGE_TAG="${IMAGE_TAG:-manual-test}"  # Can be overridden via env var
 
 ################################################################################

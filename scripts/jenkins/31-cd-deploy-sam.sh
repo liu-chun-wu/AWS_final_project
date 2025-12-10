@@ -56,6 +56,7 @@ set -e  # Exit immediately if any command fails
 
 SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
 PROJECT_ROOT="$(cd "$SCRIPT_DIR/../.." && pwd)"
+source "${SCRIPT_DIR}/env-common.sh"
 
 ################################################################################
 # Parse Command-Line Arguments
@@ -124,17 +125,17 @@ if [ -z "$BACKEND_TYPE" ]; then
     exit 1
 fi
 
-AWS_REGION="${AWS_REGION:-us-east-1}"
+AWS_REGION="${PIPELINE_AWS_REGION:-${AWS_REGION:-us-east-1}}"
 AWS_ACCOUNT_ID=$(aws sts get-caller-identity --query 'Account' --output text)
-REPO_NAME="aws-lab-flask-demo"
+REPO_NAME="${PIPELINE_ECR_REPO:-aws-lab-flask-demo}"
 
 # Set stack name and config based on backend type
 if [ "$BACKEND_TYPE" == "demo-backend" ]; then
-    SAM_CONFIG="aws/samconfig-demo.toml"
-    STACK_NAME="flask-demo-backend"
+    SAM_CONFIG="aws/${PIPELINE_SAM_CONFIG_DEMO:-samconfig-demo.toml}"
+    STACK_NAME="${PIPELINE_STACK_DEMO:-flask-demo-backend}"
 else
-    SAM_CONFIG="aws/samconfig-prod.toml"
-    STACK_NAME="flask-prod-backend"
+    SAM_CONFIG="aws/${PIPELINE_SAM_CONFIG_PROD:-samconfig-prod.toml}"
+    STACK_NAME="${PIPELINE_STACK_PROD:-flask-prod-backend}"
 fi
 
 ################################################################################

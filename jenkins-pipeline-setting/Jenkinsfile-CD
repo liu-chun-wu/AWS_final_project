@@ -33,6 +33,43 @@ pipeline {
             }
         }
 
+        stage('Load Pipeline Config') {
+            steps {
+                script {
+                    def cfg = sh(script: '''
+                        set -a
+                        [ -f scripts/jenkins/env-common.sh ] && source scripts/jenkins/env-common.sh
+                        env | grep '^PIPELINE_' || true
+                    ''', returnStdout: true).trim()
+                    if (cfg) {
+                        cfg.split("\\n").each { line ->
+                            if (!line) return
+                            def idx = line.indexOf('=')
+                            if (idx > 0) {
+                                def k = line.substring(0, idx)
+                                def v = line.substring(idx + 1)
+                                env."${k}" = v
+                            }
+                        }
+                    }
+                    env.IMAGE_NAME = env.PIPELINE_IMAGE_NAME ?: env.IMAGE_NAME ?: 'aws-lab-flask-demo'
+                    env.AWS_REGION = env.PIPELINE_AWS_REGION ?: env.AWS_REGION ?: 'us-east-1'
+                    env.BRANCH_ALLOWED = env.PIPELINE_BRANCH_ALLOWED ?: 'Jeffery'
+                    def backendDir = params.BACKEND_DIR ?: 'demo-backend'
+                    env.BACKEND = backendDir
+                    env.STACK_NAME = backendDir == 'backend' ? (env.PIPELINE_STACK_PROD ?: 'flask-prod-backend') : (env.PIPELINE_STACK_DEMO ?: 'flask-demo-backend')
+                    env.SAM_CONFIG = backendDir == 'backend' ? (env.PIPELINE_SAM_CONFIG_PROD ?: 'samconfig-prod.toml') : (env.PIPELINE_SAM_CONFIG_DEMO ?: 'samconfig-demo.toml')
+                    echo "Loaded pipeline config:"
+                    echo "  image=${env.IMAGE_NAME}"
+                    echo "  region=${env.AWS_REGION}"
+                    echo "  branch=${env.BRANCH_ALLOWED}"
+                    echo "  backend=${env.BACKEND}"
+                    echo "  stack=${env.STACK_NAME}"
+                    echo "  sam config=${env.SAM_CONFIG}"
+                }
+            }
+        }
+
         stage('Validate Jeffery Branch') {
             steps {
                 script {
@@ -46,14 +83,14 @@ pipeline {
                     echo "SAM config: ${env.SAM_CONFIG}"
                     echo ""
 
-                    if (!branchName.contains('Jeffery')) {
+                    if (!branchName.contains(env.BRANCH_ALLOWED)) {
                         currentBuild.result = 'NOT_BUILT'
                         error("❌ This CD pipeline is designed for the Jeffery branch only!\n" +
                               "   Current branch: ${branchName}\n" +
-                              "   Expected branch: Jeffery")
+                              "   Expected branch: ${env.BRANCH_ALLOWED}")
                     }
 
-                    echo "✅ Branch validated: Jeffery"
+                    echo "✅ Branch validated: ${env.BRANCH_ALLOWED}"
                     echo "   Pipeline mode: CD (Continuous Deployment)"
                     echo "   - Will run: ECR login, Image push, SAM deploy, Verification"
                     echo "============================================"
