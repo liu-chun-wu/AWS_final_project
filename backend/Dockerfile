@@ -29,6 +29,6 @@ ENV PORT=8000
 # Use gunicorn as production WSGI server
 # --bind 0.0.0.0:8000: Bind to all interfaces on port 8000
 # --workers 1: Use 1 worker (Lambda containers are single-threaded)
-# --timeout 60: Set request timeout to 60 seconds
+# --timeout 300: Set request timeout to 300 seconds (5 minutes for AI API calls)
 # src.app:create_app(): Use application factory pattern
-CMD ["gunicorn", "--bind", "0.0.0.0:8000", "--workers", "1", "--timeout", "60", "src.app:create_app()"]
+CMD ["gunicorn", "--bind", "0.0.0.0:8000", "--workers", "1", "--timeout", "300", "src.app:create_app()"]

@@ -1,3 +1,24 @@
+# Web framework (match Jeffery template version)
 Flask==3.0.0
+
+# WSGI server (match Jeffery template version)
 gunicorn==21.2.0
+
+# Testing framework (match Jeffery template version)
 pytest==7.4.3
+
+# AWS SDK for Python
+boto3==1.34.0
+
+# Environment variable management
+python-dotenv==1.0.0
+
+# HTTP requests for external APIs (HuggingFace, Suno)
+requests==2.31.0
+
+# Image processing library
+Pillow==10.2.0
+
+# Discord bot support (optional - only needed if running bot.py)
+discord.py==2.3.2
+aiohttp==3.9.1

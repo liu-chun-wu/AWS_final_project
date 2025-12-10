@@ -1,0 +1,6 @@
+discord.py
+Flask
+requests
+Pillow
+python-dotenv
+aiohttp
