@@ -214,10 +214,27 @@ if [ "$TARGET" = "ec2" ]; then
     print_info "What are we doing?"
     print_explain "Loading instance metadata saved by script 41-setup-jenkins-ec2.sh"
     print_explain "This file contains: Instance ID, Public IP, Security Group, etc."
-    print_explain "File location: .jenkins-ec2${ENVIRONMENT:+-$ENVIRONMENT}.info (in project root)"
-    echo ""
+    DEFAULT_INFO_FILE="$PROJECT_ROOT/.jenkins-ec2.info"
+    ALT_INFO_FILE="$PROJECT_ROOT/.jenkins-ec2${ENVIRONMENT:+-$ENVIRONMENT}.info"
+    if [ -n "$ENVIRONMENT" ]; then
+        INSTANCE_INFO_FILE="$ALT_INFO_FILE"
+    else
+        INSTANCE_INFO_FILE="$DEFAULT_INFO_FILE"
+    fi
 
-    INSTANCE_INFO_FILE="$PROJECT_ROOT/.jenkins-ec2${ENVIRONMENT:+-$ENVIRONMENT}.info"
+    # Fallback: if chosen file missing but the other exists, switch with a notice
+    if [ ! -f "$INSTANCE_INFO_FILE" ]; then
+        if [ "$INSTANCE_INFO_FILE" != "$DEFAULT_INFO_FILE" ] && [ -f "$DEFAULT_INFO_FILE" ]; then
+            print_warning "Requested info file not found; falling back to default: $DEFAULT_INFO_FILE"
+            INSTANCE_INFO_FILE="$DEFAULT_INFO_FILE"
+        elif [ "$INSTANCE_INFO_FILE" != "$ALT_INFO_FILE" ] && [ -f "$ALT_INFO_FILE" ]; then
+            print_warning "Default info file not found; using environment-specific file: $ALT_INFO_FILE"
+            INSTANCE_INFO_FILE="$ALT_INFO_FILE"
+        fi
+    fi
+
+    print_explain "File location: $(basename "$INSTANCE_INFO_FILE") (in project root)"
+    echo ""
 
     if [ ! -f "$INSTANCE_INFO_FILE" ]; then
         print_error "Instance information file not found: $INSTANCE_INFO_FILE"
