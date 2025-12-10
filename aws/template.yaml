@@ -12,6 +12,10 @@ Parameters:
     Type: String
     Default: latest
     Description: Docker image tag to deploy from ECR
+  ImageRepoName:
+    Type: String
+    Default: aws-lab-flask-demo
+    Description: ECR repository name that stores the Lambda container image
 
 # Global settings applied to all resources
 Globals:
@@ -35,7 +39,7 @@ Resources:
       PackageType: Image
       # ECR image URI - uses ImageTag parameter for dynamic tag selection
       # Format: <account-id>.dkr.ecr.<region>.amazonaws.com/<repo-name>:<tag>
-      ImageUri: !Sub '${AWS::AccountId}.dkr.ecr.${AWS::Region}.amazonaws.com/aws-lab-flask-demo:${ImageTag}'
+      ImageUri: !Sub '${AWS::AccountId}.dkr.ecr.${AWS::Region}.amazonaws.com/${ImageRepoName}:${ImageTag}'
 
       # Use existing LabRole instead of creating new IAM role (AWS Learner Lab restriction)
       Role: !Sub 'arn:aws:iam::${AWS::AccountId}:role/LabRole'

@@ -451,7 +451,7 @@ deploy_sam() {
     if sam deploy \
         --config-file "$SAM_CONFIG" \
         --stack-name "$STACK_NAME" \
-        --parameter-overrides ImageTag=$IMAGE_TAG \
+        --parameter-overrides ImageTag=$IMAGE_TAG ImageRepoName=$REPO_NAME \
         --resolve-image-repos \
         --no-confirm-changeset \
         --no-fail-on-empty-changeset \
