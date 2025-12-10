@@ -591,12 +591,12 @@ cat > /tmp/flask-ci-config.xml << 'CI_CONFIG_EOF'
         <hudson.model.ChoiceParameterDefinition>
           <name>BACKEND_DIR</name>
           <description>Which backend to build and test?
-• demo-backend: Flask demo for CI/CD validation
-• backend: Production service</description>
+• demo: Flask demo for CI/CD validation
+• production: Production service</description>
           <choices class="java.util.Arrays$ArrayList">
             <a class="string-array">
-              <string>demo-backend</string>
-              <string>backend</string>
+              <string>demo</string>
+              <string>production</string>
             </a>
           </choices>
         </hudson.model.ChoiceParameterDefinition>
@@ -732,12 +732,12 @@ cat > /tmp/flask-cd-config.xml << 'CD_CONFIG_EOF'
         <hudson.model.ChoiceParameterDefinition>
           <name>BACKEND_DIR</name>
           <description>Which backend to deploy?
-• demo-backend: Deploy to flask-demo-backend stack
-• backend: Deploy to flask-prod-backend stack</description>
+• demo: Deploy to demo stack
+• production: Deploy to prod stack</description>
           <choices class="java.util.Arrays$ArrayList">
             <a class="string-array">
-              <string>demo-backend</string>
-              <string>backend</string>
+              <string>demo</string>
+              <string>production</string>
             </a>
           </choices>
         </hudson.model.ChoiceParameterDefinition>

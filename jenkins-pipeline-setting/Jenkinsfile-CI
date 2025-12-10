@@ -4,8 +4,8 @@ pipeline {
     parameters {
         choice(
             name: 'BACKEND_DIR',
-            choices: ['demo-backend', 'backend'],
-            description: 'Which backend to build and test?\n• demo-backend: Flask demo for CI/CD validation\n• backend: Production service'
+            choices: ['demo', 'production'],
+            description: 'Which backend to build and test?'
         )
     }
 
@@ -43,7 +43,8 @@ pipeline {
                             }
                         }
                     }
-                    env.BACKEND = params.BACKEND_DIR ?: 'demo-backend'
+                    def backendChoice = params.BACKEND_DIR ?: 'demo'
+                    env.BACKEND = (backendChoice == 'production') ? 'backend' : 'demo-backend'
                     env.IMAGE_NAME = env.PIPELINE_IMAGE_NAME ?: 'aws-lab-flask-demo'
                     env.AWS_REGION = env.PIPELINE_AWS_REGION ?: 'us-east-1'
                     env.BRANCH_ALLOWED = env.PIPELINE_BRANCH_ALLOWED ?: 'Jeffery'
@@ -51,7 +52,7 @@ pipeline {
                     echo "  image=${env.IMAGE_NAME}"
                     echo "  region=${env.AWS_REGION}"
                     echo "  branch=${env.BRANCH_ALLOWED}"
-                    echo "  backend=${env.BACKEND}"
+                    echo "  backend=${env.BACKEND} (choice=${backendChoice})"
                 }
             }
         }
