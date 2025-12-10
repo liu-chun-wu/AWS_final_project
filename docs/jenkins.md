@@ -9,7 +9,7 @@ Use this guide to move from manual scripts to Jenkins automation in two predicta
    - Mounts the repository and Docker socket so container builds work.
 2. Visit `http://localhost:8080` and unlock Jenkins using the password printed by the script.
 3. Install plugins: Git, GitHub, workflow-aggregator (Pipeline), credentials-binding, docker-workflow + docker-commons, aws-credentials, Blue Ocean. The configure script installs these with retries and pinned versions.
-4. Update knobs once in `scripts/jenkins/env-common.sh` (image/repo name, region, branch name, stack names, GitHub repo, job names); all Jenkins scripts and Jenkinsfiles now read from there.
+4. Update knobs once in `scripts/jenkins/env-common.sh` (image/ECR name, region, branch allow-list, stack names, SAM configs, GitHub repo, job names); all Jenkins scripts and Jenkinsfiles now read from there (Jenkinsfiles fall back to those values if the file isn’t loaded).
 5. (Optional) Run `./scripts/jenkins/42-configure-jenkins-jobs.sh --local --demo` to auto-create the `flask-ci` and `flask-cd` jobs. Otherwise create them manually:
    - `flask-ci` → points to `jenkins-pipeline-setting/Jenkinsfile-CI`.
    - `flask-cd` → points to `jenkins-pipeline-setting/Jenkinsfile-CD`.

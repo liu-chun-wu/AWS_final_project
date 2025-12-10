@@ -15,13 +15,14 @@ pipeline {
     }
 
     environment {
-        IMAGE_NAME = 'aws-lab-flask-demo'
-        AWS_REGION = 'us-east-1'
+        // Central defaults live in scripts/jenkins/env-common.sh; these are fallbacks.
+        IMAGE_NAME = "${PIPELINE_IMAGE_NAME ?: 'aws-lab-flask-demo'}"
+        AWS_REGION = "${PIPELINE_AWS_REGION ?: 'us-east-1'}"
+        BRANCH_ALLOWED = "${PIPELINE_BRANCH_ALLOWED ?: 'Jeffery'}"
         BACKEND = "${params.BACKEND_DIR ?: 'demo-backend'}"
         TOOLS_PATH = "${env.WORKSPACE}/.aws-cli/bin:${env.WORKSPACE}/.sam-cli/bin:/usr/local/bin:/usr/bin:/bin"
-        // SAM config file selection
-        SAM_CONFIG = "${params.BACKEND_DIR == 'backend' ? 'samconfig-prod.toml' : 'samconfig-demo.toml'}"
-        STACK_NAME = "${params.BACKEND_DIR == 'backend' ? 'flask-prod-backend' : 'flask-demo-backend'}"
+        SAM_CONFIG = "${params.BACKEND_DIR == 'backend' ? (PIPELINE_SAM_CONFIG_PROD ?: 'samconfig-prod.toml') : (PIPELINE_SAM_CONFIG_DEMO ?: 'samconfig-demo.toml')}"
+        STACK_NAME = "${params.BACKEND_DIR == 'backend' ? (PIPELINE_STACK_PROD ?: 'flask-prod-backend') : (PIPELINE_STACK_DEMO ?: 'flask-demo-backend')}"
     }
 
     stages {

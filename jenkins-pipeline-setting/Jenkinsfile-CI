@@ -10,10 +10,12 @@ pipeline {
     }
 
     environment {
-        IMAGE_NAME = 'aws-lab-flask-demo'
+        // Defaults are centralized in scripts/jenkins/env-common.sh; these are fallbacks.
+        IMAGE_NAME = "${PIPELINE_IMAGE_NAME ?: 'aws-lab-flask-demo'}"
         IMAGE_TAG = "${BUILD_NUMBER}"
-        BACKEND = "${params.BACKEND_DIR ?: 'demo-backend'}"
-        AWS_REGION = 'us-east-1'
+        BACKEND   = "${params.BACKEND_DIR ?: 'demo-backend'}"
+        AWS_REGION = "${PIPELINE_AWS_REGION ?: 'us-east-1'}"
+        BRANCH_ALLOWED = "${PIPELINE_BRANCH_ALLOWED ?: 'Jeffery'}"
         TOOLS_PATH = "${env.WORKSPACE}/.aws-cli/bin:/usr/local/bin:/usr/bin:/bin"
     }
 
