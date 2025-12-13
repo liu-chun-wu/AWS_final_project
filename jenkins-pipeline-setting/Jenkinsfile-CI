@@ -47,7 +47,7 @@ pipeline {
                     env.TAG_PREFIX = (backendChoice == 'production') ? (env.PIPELINE_TAG_PREFIX_PROD ?: 'prod') : (env.PIPELINE_TAG_PREFIX_DEMO ?: 'demo')
                     env.IMAGE_NAME = env.PIPELINE_IMAGE_NAME ?: 'aws-final-project-repo'
                     env.AWS_REGION = env.PIPELINE_AWS_REGION ?: 'us-east-1'
-                    env.BRANCH_ALLOWED = env.PIPELINE_BRANCH_ALLOWED ?: 'Jeffery'
+                    env.BRANCH_ALLOWED = env.PIPELINE_BRANCH_ALLOWED ?: 'main'
                     env.GIT_SHA = sh(script: 'git rev-parse --short HEAD', returnStdout: true).trim()
                     // Immutable image tag: <prefix>-<build>-<gitsha>
                     env.IMAGE_TAG = "${env.TAG_PREFIX}-${BUILD_NUMBER}-${env.GIT_SHA}"

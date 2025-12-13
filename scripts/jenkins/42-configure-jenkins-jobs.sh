@@ -143,23 +143,19 @@ print_explain() {
 
 usage() {
     cat <<EOF
-Usage: $0 [--local|--ec2] [--demo|--prod] [--branch <branch-name>] [--webhook-target <ci|cd|none>]
+Usage: $0 [--local|--ec2] [--demo|--prod]
 
 Options:
   --local        Configure Jenkins jobs on the local Dockerized controller.
   --ec2          Configure Jenkins jobs on the EC2 instance provisioned by 41-setup-jenkins-ec2.sh.
   --demo         Use demo environment metadata (default).
   --prod         Use production environment metadata.
-  --branch NAME  Set PIPELINE_BRANCH_ALLOWED (controls branch filter). Default: env or Jeffery.
-  --webhook-target ci|cd|none   Choose which job gets the GitHub webhook trigger (default: ci).
   -h, --help     Show this help text.
 EOF
 }
 
 TARGET=""
 ENVIRONMENT="demo"
-BRANCH_OVERRIDE=""
-WEBHOOK_TARGET="ci"
 
 while [[ $# -gt 0 ]]; do
     case "$1" in
@@ -179,14 +175,6 @@ while [[ $# -gt 0 ]]; do
             ENVIRONMENT="prod"
             shift
             ;;
-        --branch)
-            BRANCH_OVERRIDE="$2"
-            shift 2
-            ;;
-        --webhook-target)
-            WEBHOOK_TARGET="$2"
-            shift 2
-            ;;
         -h|--help)
             usage
             exit 0
@@ -203,10 +191,6 @@ if [ -z "$TARGET" ]; then
     echo "Error: you must specify --local or --ec2"
     usage
     exit 1
-fi
-
-if [ -n "$BRANCH_OVERRIDE" ]; then
-    export PIPELINE_BRANCH_ALLOWED="$BRANCH_OVERRIDE"
 fi
 
 TARGET_DESCRIPTION=$([ "$TARGET" = "ec2" ] && echo "EC2" || echo "local")
@@ -635,6 +619,13 @@ cat > /tmp/flask-ci-config.xml << 'CI_CONFIG_EOF'
         </hudson.model.ChoiceParameterDefinition>
       </parameterDefinitions>
     </hudson.model.ParametersDefinitionProperty>
+    <org.jenkinsci.plugins.workflow.job.properties.PipelineTriggersJobProperty>
+      <triggers>
+        <com.cloudbees.jenkins.GitHubPushTrigger plugin="github@1.37.0">
+          <spec></spec>
+        </com.cloudbees.jenkins.GitHubPushTrigger>
+      </triggers>
+    </org.jenkinsci.plugins.workflow.job.properties.PipelineTriggersJobProperty>
   </properties>
   <definition class="org.jenkinsci.plugins.workflow.cps.CpsScmFlowDefinition" plugin="workflow-cps@2.90">
     <scm class="hudson.plugins.git.GitSCM" plugin="git@4.11.0">
@@ -646,7 +637,7 @@ cat > /tmp/flask-ci-config.xml << 'CI_CONFIG_EOF'
       </userRemoteConfigs>
       <branches>
         <hudson.plugins.git.BranchSpec>
-          <name>*/${PIPELINE_BRANCH_ALLOWED:-Jeffery}</name>
+          <name>*/Jeffery</name>
         </hudson.plugins.git.BranchSpec>
       </branches>
       <doGenerateSubmoduleConfigurations>false</doGenerateSubmoduleConfigurations>
@@ -672,13 +663,8 @@ echo ""
 
 # Replace placeholder with actual GitHub repo URL
 sed -i.bak "s|GITHUB_REPO_PLACEHOLDER|$GITHUB_REPO|g" /tmp/flask-ci-config.xml
-sed -i.bak "s|Jeffery|${PIPELINE_BRANCH_ALLOWED:-Jeffery}|g" /tmp/flask-ci-config.xml
+sed -i.bak "s|Jeffery|${PIPELINE_BRANCH_ALLOWED:-main}|g" /tmp/flask-ci-config.xml
 rm -f /tmp/flask-ci-config.xml.bak
-
-# Attach webhook trigger to CI if requested
-if [ "$WEBHOOK_TARGET" = "ci" ]; then
-    perl -0pi -e 's#<triggers/>#<org.jenkinsci.plugins.workflow.job.properties.PipelineTriggersJobProperty>\n  <triggers>\n    <com.cloudbees.jenkins.GitHubPushTrigger plugin="github@1.37.0">\n      <spec></spec>\n    </com.cloudbees.jenkins.GitHubPushTrigger>\n  </triggers>\n</org.jenkinsci.plugins.workflow.job.properties.PipelineTriggersJobProperty>#' /tmp/flask-ci-config.xml
-fi
 
 # Check if job already exists
 # Explanation: GET /job/{name}/api/json returns 200 if job exists, 404 if not
@@ -791,7 +777,7 @@ cat > /tmp/flask-cd-config.xml << 'CD_CONFIG_EOF'
       </userRemoteConfigs>
       <branches>
         <hudson.plugins.git.BranchSpec>
-          <name>*/${PIPELINE_BRANCH_ALLOWED:-Jeffery}</name>
+          <name>*/Jeffery</name>
         </hudson.plugins.git.BranchSpec>
       </branches>
       <doGenerateSubmoduleConfigurations>false</doGenerateSubmoduleConfigurations>
@@ -807,20 +793,15 @@ cat > /tmp/flask-cd-config.xml << 'CD_CONFIG_EOF'
 CD_CONFIG_EOF
 
 print_info "XML configuration differences from CI job:"
-print_explain "• Branch: */${PIPELINE_BRANCH_ALLOWED:-Jeffery}"
+print_explain "• Branch: */${PIPELINE_BRANCH_ALLOWED:-main} - production branch"
 print_explain "• scriptPath: jenkins-pipeline-setting/Jenkinsfile-CD (not Jenkinsfile-CI)"
 print_explain "• Extra parameter: IMAGE_TAG (allows deploying specific versions)"
 echo ""
 
 # Replace placeholder with actual GitHub repo URL
 sed -i.bak "s|GITHUB_REPO_PLACEHOLDER|$GITHUB_REPO|g" /tmp/flask-cd-config.xml
-sed -i.bak "s|Jeffery|${PIPELINE_BRANCH_ALLOWED:-Jeffery}|g" /tmp/flask-cd-config.xml
+sed -i.bak "s|Jeffery|${PIPELINE_BRANCH_ALLOWED:-main}|g" /tmp/flask-cd-config.xml
 rm -f /tmp/flask-cd-config.xml.bak
-
-# Attach webhook trigger to CD if requested
-if [ "$WEBHOOK_TARGET" = "cd" ]; then
-    perl -0pi -e 's#<triggers/>#<org.jenkinsci.plugins.workflow.job.properties.PipelineTriggersJobProperty>\n  <triggers>\n    <com.cloudbees.jenkins.GitHubPushTrigger plugin="github@1.37.0">\n      <spec></spec>\n    </com.cloudbees.jenkins.GitHubPushTrigger>\n  </triggers>\n</org.jenkinsci.plugins.workflow.job.properties.PipelineTriggersJobProperty>#' /tmp/flask-cd-config.xml
-fi
 
 # Check if job already exists
 CD_JOB_STATUS=$(curl -s -o /dev/null -w "%{http_code}" -b "$COOKIE_JAR" -u "$JENKINS_USER:$JENKINS_PASSWORD" "$JENKINS_URL/job/$CD_JOB_NAME/api/json")

@@ -49,7 +49,7 @@ pipeline {
                     }
                     env.IMAGE_NAME = env.PIPELINE_IMAGE_NAME ?: 'aws-final-project-repo'
                     env.AWS_REGION = env.PIPELINE_AWS_REGION ?: 'us-east-1'
-                    env.BRANCH_ALLOWED = env.PIPELINE_BRANCH_ALLOWED ?: 'Jeffery'
+                    env.BRANCH_ALLOWED = env.PIPELINE_BRANCH_ALLOWED ?: 'main'
                     def backendChoice = params.BACKEND_DIR ?: 'production'
                     env.BACKEND = (backendChoice == 'production') ? 'backend' : 'demo-backend'
                     env.TAG_PREFIX = backendChoice == 'production' ? (env.PIPELINE_TAG_PREFIX_PROD ?: 'prod') : (env.PIPELINE_TAG_PREFIX_DEMO ?: 'demo')
