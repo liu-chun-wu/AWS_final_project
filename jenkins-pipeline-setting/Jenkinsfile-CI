@@ -11,7 +11,6 @@ pipeline {
 
     environment {
         // Minimal upfront defaults; real values loaded in "Load Pipeline Config"
-        IMAGE_TAG = "${BUILD_NUMBER}"
         TOOLS_PATH = "${env.WORKSPACE}/.aws-cli/bin:/usr/local/bin:/usr/bin:/bin"
     }
 
@@ -52,6 +51,16 @@ pipeline {
                     env.GIT_SHA = sh(script: 'git rev-parse --short HEAD', returnStdout: true).trim()
                     // Immutable image tag: <prefix>-<build>-<gitsha>
                     env.IMAGE_TAG = "${env.TAG_PREFIX}-${BUILD_NUMBER}-${env.GIT_SHA}"
+                    if (!env.TAG_PREFIX?.trim()) {
+                        error("❌ TAG_PREFIX is empty. Check PIPELINE_TAG_PREFIX_* configuration.")
+                    }
+                    if (!env.GIT_SHA?.trim()) {
+                        error("❌ Unable to resolve git SHA (git rev-parse returned empty).")
+                    }
+                    def tagPattern = "^${env.TAG_PREFIX}-[0-9]+-[0-9a-f]+$"
+                    if (!(env.IMAGE_TAG ==~ tagPattern)) {
+                        error("❌ IMAGE_TAG '${env.IMAGE_TAG}' does not match expected pattern ${tagPattern}")
+                    }
                     echo "Loaded pipeline config:"
                     echo "  image=${env.IMAGE_NAME}"
                     echo "  region=${env.AWS_REGION}"

@@ -101,6 +101,13 @@ GIT_SHA=$(git -C "$PROJECT_ROOT" rev-parse --short HEAD)
 TAG_PREFIX="${TAG_PREFIX:-${PIPELINE_TAG_PREFIX_DEMO:-demo}}"
 IMAGE_TAG="${TAG_PREFIX}-${BUILD_ID}-${GIT_SHA}"
 
+TAG_PATTERN="^${TAG_PREFIX}-[0-9]+-[0-9a-f]+$"
+if ! [[ "$IMAGE_TAG" =~ $TAG_PATTERN ]]; then
+    echo "ERROR: IMAGE_TAG '$IMAGE_TAG' does not match expected pattern '$TAG_PATTERN'"
+    echo "Check TAG_PREFIX, BUILD_ID, and git availability."
+    exit 1
+fi
+
 ################################################################################
 # Helper Functions for Output Formatting
 ################################################################################
