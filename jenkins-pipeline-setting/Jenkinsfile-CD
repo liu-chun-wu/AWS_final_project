@@ -10,7 +10,7 @@ pipeline {
         string(
             name: 'IMAGE_TAG',
             defaultValue: '',
-            description: 'ECR image tag to deploy (leave empty to auto-detect latest from ECR)'
+            description: 'ECR image tag to deploy (leave empty to auto-detect newest immutable tag)'
         )
     }
 
@@ -177,14 +177,14 @@ pipeline {
                         }
                         echo "✅ Using explicitly specified image tag: ${env.DEPLOY_IMAGE_TAG}"
                     } else {
-                        echo "No IMAGE_TAG parameter provided. Auto-detecting latest image from ECR..."
+                        echo "No IMAGE_TAG parameter provided. Auto-detecting newest immutable tag from ECR..."
                         withCredentials([
                             [$class: 'AmazonWebServicesCredentialsBinding', credentialsId: 'aws-lab-creds', accessKeyVariable: 'AWS_ACCESS_KEY_ID', secretKeyVariable: 'AWS_SECRET_ACCESS_KEY'],
                             string(credentialsId: 'aws-session-token', variable: 'AWS_SESSION_TOKEN')
                         ]) {
                             sh '''
                                 export PATH="${TOOLS_PATH}"
-                                set +e
+                                set -e
                                 # Ensure repository exists (idempotent)
                                 aws ecr describe-repositories \
                                     --repository-name ${IMAGE_NAME} \
@@ -196,24 +196,18 @@ pipeline {
                                         --region ${AWS_REGION}
                                     }
 
-                                # Fetch newest tag by push time
+                                # Fetch newest immutable tag (pattern prefix-build-sha)
                                 IMAGE_TAG=$(aws ecr describe-images \
                                     --repository-name ${IMAGE_NAME} \
                                     --region ${AWS_REGION} \
                                     --query "reverse(sort_by(imageDetails,&imagePushedAt))[].imageTags[]" \
-                                    --output text 2>/dev/null | tr '\t' '\n' | grep \"^${TAG_PREFIX}-\" | head -1)
-
-                                STATUS=$?
-                                if [ $STATUS -ne 0 ]; then
-                                    echo "❌ AWS CLI error while describing images"
-                                    exit $STATUS
-                                fi
+                                    --output text | tr '\t' '\n' | grep -E \"^${TAG_PREFIX}-[0-9]+-[0-9a-f]+$\" | head -1)
 
                                 if [ -z "$IMAGE_TAG" ] || [ "$IMAGE_TAG" = "None" ]; then
-                                    echo "❌ No images found in ECR repository: ${IMAGE_NAME}"
+                                    echo "❌ No immutable images found in ECR repository: ${IMAGE_NAME}"
                                     echo ""
                                     echo "Push an image first, e.g.:"
-                                    echo "  ./scripts/jenkins/20-ci-build-and-push.sh --demo"
+                                    echo "  ./scripts/jenkins/20-ci-build-and-push.sh --prod"
                                     echo "or run CI to publish one."
                                     exit 1
                                 fi

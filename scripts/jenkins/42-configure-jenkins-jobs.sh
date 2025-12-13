@@ -732,7 +732,7 @@ print_explain "• Pipeline definition: From SCM (jenkins-pipeline-setting/Jenki
 print_explain "• Trigger: Manual (run when you are ready to deploy from production branch)"
 print_explain "• Parameters:"
 print_explain "  - BACKEND_DIR: Choose which backend to deploy"
-print_explain "  - IMAGE_TAG: Specific ECR image tag (or auto-detect latest)"
+print_explain "  - IMAGE_TAG: Specific ECR image tag (or auto-detect newest immutable tag)"
 echo ""
 
 CD_JOB_NAME="${PIPELINE_CD_JOB:-flask-cd}"
@@ -760,7 +760,7 @@ cat > /tmp/flask-cd-config.xml << 'CD_CONFIG_EOF'
         </hudson.model.ChoiceParameterDefinition>
         <hudson.model.StringParameterDefinition>
           <name>IMAGE_TAG</name>
-          <description>ECR image tag to deploy (leave empty to auto-detect latest from ECR)</description>
+          <description>ECR image tag to deploy (leave empty to auto-detect newest immutable tag from ECR)</description>
           <defaultValue></defaultValue>
           <trim>true</trim>
         </hudson.model.StringParameterDefinition>
@@ -932,7 +932,7 @@ echo "     URL: $JENKINS_URL/job/$CD_JOB_NAME/"
 echo "     • Trigger: Manual run after validating CI image"
 echo "     • Pipeline: jenkins-pipeline-setting/Jenkinsfile-CD (version controlled in Git)"
 echo "     • Purpose: Validate → Deploy → Verify Lambda deployment"
-echo "     • Parameters: BACKEND_DIR (production default), IMAGE_TAG (optional, auto-detects latest)"
+echo "     • Parameters: BACKEND_DIR (production default), IMAGE_TAG (optional, auto-detects newest immutable tag)"
 echo ""
 
 print_header "Next Steps (Phase 6: Jenkins Pipeline Testing)"
@@ -971,7 +971,7 @@ echo "b. Click 'Build with Parameters'"
 echo ""
 echo "c. Configure parameters:"
 echo "   BACKEND_DIR: demo-backend"
-echo "   IMAGE_TAG: (leave empty to auto-detect latest from ECR)"
+echo "   IMAGE_TAG: (leave empty to auto-detect newest immutable tag)"
 echo ""
 echo "d. Click 'Build' button"
 echo ""

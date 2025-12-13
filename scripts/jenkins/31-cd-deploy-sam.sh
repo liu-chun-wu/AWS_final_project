@@ -87,10 +87,10 @@ while [[ $# -gt 0 ]]; do
             echo "Options:"
             echo "  --demo        Deploy to demo-backend stack (${PIPELINE_STACK_DEMO:-flask-demo-backend})"
             echo "  --prod        Deploy to prod-backend stack (${PIPELINE_STACK_PROD:-flask-prod-backend})"
-            echo "  --image-tag   ECR image tag to deploy (optional, auto-detects latest)"
+            echo "  --image-tag   ECR image tag to deploy (optional, auto-detect newest immutable tag)"
             echo ""
             echo "Examples:"
-            echo "  $0 --demo                           # Auto-detect latest image from ECR"
+            echo "  $0 --demo                           # Auto-detect newest immutable image from ECR"
             echo "  $0 --demo --image-tag manual-test   # Deploy specific image tag"
             echo "  $0 --prod --image-tag jeffery-456   # Deploy to production with tag"
             echo ""
@@ -133,9 +133,11 @@ REPO_NAME="${PIPELINE_ECR_REPO:-aws-final-project-repo}"
 if [ "$BACKEND_TYPE" == "demo-backend" ]; then
     SAM_CONFIG="aws/${PIPELINE_SAM_CONFIG_DEMO:-samconfig-demo.toml}"
     STACK_NAME="${PIPELINE_STACK_DEMO:-flask-demo-backend}"
+    TAG_PREFIX="${PIPELINE_TAG_PREFIX_DEMO:-demo}"
 else
     SAM_CONFIG="aws/${PIPELINE_SAM_CONFIG_PROD:-samconfig-prod.toml}"
     STACK_NAME="${PIPELINE_STACK_PROD:-flask-prod-backend}"
+    TAG_PREFIX="${PIPELINE_TAG_PREFIX_PROD:-prod}"
 fi
 
 ################################################################################
@@ -239,31 +241,31 @@ detect_image_tag() {
     print_header "Step 0: Detecting ECR Image"
 
     if [ -z "$IMAGE_TAG" ]; then
-        print_info "No --image-tag specified, auto-detecting from ECR..."
+        print_info "No --image-tag specified, auto-detecting newest immutable tag from ECR..."
         echo ""
 
         print_info "Query command:"
         print_command "aws ecr describe-images \\"
         print_command "    --repository-name $REPO_NAME \\"
         print_command "    --region $AWS_REGION \\"
-        print_command "    --query 'sort_by(imageDetails,&imagePushedAt)[-1].imageTags[0]'"
+        print_command "    --query \"reverse(sort_by(imageDetails,&imagePushedAt))[].imageTags[]\""
+        print_command "    | grep -E '^${TAG_PREFIX}-[0-9]+-[0-9a-f]+$' | head -1"
         echo ""
 
         print_explain "Auto-detection logic:"
-        print_explain "  • Sorts images by push timestamp (imagePushedAt)"
-        print_explain "  • Takes the most recent image ([-1])"
-        print_explain "  • Extracts the first tag from that image"
-        print_explain "  • This is usually 'latest' or a build-specific tag"
+        print_explain "  • Sort images by push time descending"
+        print_explain "  • Filter tags matching immutable pattern: ${TAG_PREFIX}-<build>-<gitsha>"
+        print_explain "  • Pick the newest matching tag"
         echo ""
 
         IMAGE_TAG=$(aws ecr describe-images \
             --repository-name "$REPO_NAME" \
             --region "$AWS_REGION" \
-            --query 'sort_by(imageDetails,&imagePushedAt)[-1].imageTags[0]' \
-            --output text 2>/dev/null)
+            --query "reverse(sort_by(imageDetails,&imagePushedAt))[].imageTags[]" \
+            --output text 2>/dev/null | tr '\t' '\n' | grep -E "^${TAG_PREFIX}-[0-9]+-[0-9a-f]+$" | head -1)
 
         if [ -z "$IMAGE_TAG" ] || [ "$IMAGE_TAG" == "None" ]; then
-            print_error "No images found in ECR repository: $REPO_NAME"
+            print_error "No immutable images found in ECR repository: $REPO_NAME"
             echo ""
             echo -e "${RED}╔════════════════════════════════════════════════════════╗${NC}"
             echo -e "${RED}║  Phase 3a (CI) must be completed first!                ║${NC}"
