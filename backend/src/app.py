@@ -73,7 +73,7 @@ def register_routes(app):
         """
         return jsonify({
             "status": "ok",
-            "service": "production-backend111502550-"
+            "service": "production-backend"
         }), 200
 
     @app.route('/generate-image', methods=['POST'])
