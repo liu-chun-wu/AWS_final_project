@@ -57,7 +57,7 @@ pipeline {
                     if (!env.GIT_SHA?.trim()) {
                         error("❌ Unable to resolve git SHA (git rev-parse returned empty).")
                     }
-                    def tagPattern = "^${env.TAG_PREFIX}-[0-9]+-[0-9a-f]+\\$"
+                    def tagPattern = "^" + env.TAG_PREFIX + "-[0-9]+-[0-9a-f]+$"
                     if (!(env.IMAGE_TAG ==~ tagPattern)) {
                         error("❌ IMAGE_TAG '${env.IMAGE_TAG}' does not match expected pattern ${tagPattern}")
                     }
