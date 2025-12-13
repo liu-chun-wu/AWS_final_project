@@ -608,8 +608,8 @@ cat > /tmp/flask-ci-config.xml << 'CI_CONFIG_EOF'
         <hudson.model.ChoiceParameterDefinition>
           <name>BACKEND_DIR</name>
           <description>Which backend to build and test?
-• production: Production service (default)
-• demo: Flask demo for CI/CD validation</description>
+• production: Production backend (default)
+• demo: demo backend</description>
           <choices class="java.util.Arrays$ArrayList">
             <a class="string-array">
               <string>production</string>
@@ -741,7 +741,7 @@ CD_JOB_NAME="${PIPELINE_CD_JOB:-flask-cd}"
 cat > /tmp/flask-cd-config.xml << 'CD_CONFIG_EOF'
 <?xml version='1.1' encoding='UTF-8'?>
 <flow-definition plugin="workflow-job@2.40">
-  <description>Flask CD Pipeline - Deploys to AWS Lambda from production branch (main)</description>
+  <description>CD Pipeline - Deploys to AWS Lambda</description>
   <keepDependencies>false</keepDependencies>
   <properties>
     <hudson.model.ParametersDefinitionProperty>
