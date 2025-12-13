@@ -11,6 +11,14 @@ pipeline {
             steps {
                 echo 'Checking out source code from repository...'
                 checkout scm
+                script {
+                    def msg = sh(script: "git log -1 --pretty=%s", returnStdout: true).trim()
+                    def commit = sh(script: "git rev-parse --short HEAD", returnStdout: true).trim()
+                    currentBuild.displayName = "#${BUILD_NUMBER} ${commit}"
+                    currentBuild.description = msg
+                    echo "Commit: ${commit}"
+                    echo "Message: ${msg}"
+                }
                 echo 'Source code checked out successfully'
             }
         }
