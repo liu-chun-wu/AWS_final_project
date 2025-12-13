@@ -1,14 +1,6 @@
 pipeline {
     agent any
 
-    parameters {
-        choice(
-            name: 'BACKEND_DIR',
-            choices: ['demo', 'production'],
-            description: 'Which backend to build and test?'
-        )
-    }
-
     environment {
         // Minimal upfront defaults; real values loaded in "Load Pipeline Config"
         TOOLS_PATH = "${env.WORKSPACE}/.aws-cli/bin:/usr/local/bin:/usr/bin:/bin"

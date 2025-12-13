@@ -1,19 +1,6 @@
 pipeline {
     agent any
 
-    parameters {
-        choice(
-            name: 'BACKEND_DIR',
-            choices: ['demo', 'production'],
-            description: 'Which backend to deploy?'
-        )
-        string(
-            name: 'IMAGE_TAG',
-            defaultValue: '',
-            description: 'ECR image tag to deploy (leave empty to auto-detect newest immutable tag)'
-        )
-    }
-
     environment {
         // Minimal upfront defaults; real values loaded in "Load Pipeline Config"
         TOOLS_PATH = "${env.WORKSPACE}/.aws-cli/bin:${env.WORKSPACE}/.sam-cli/bin:/usr/local/bin:/usr/bin:/bin"
