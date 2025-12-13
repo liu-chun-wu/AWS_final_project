@@ -9,7 +9,7 @@ export PIPELINE_ECR_REPO="${PIPELINE_ECR_REPO:-$PIPELINE_IMAGE_NAME}"
 # AWS settings
 export PIPELINE_AWS_REGION="${PIPELINE_AWS_REGION:-us-east-1}"
 
-# Branch policy
+# Branch policy (production-only webhook target)
 export PIPELINE_BRANCH_ALLOWED="${PIPELINE_BRANCH_ALLOWED:-Jeffery}"
 
 # Stack and SAM configs

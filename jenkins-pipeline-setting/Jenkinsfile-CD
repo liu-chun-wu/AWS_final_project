@@ -49,8 +49,8 @@ pipeline {
                     }
                     env.IMAGE_NAME = env.PIPELINE_IMAGE_NAME ?: 'aws-final-project-repo'
                     env.AWS_REGION = env.PIPELINE_AWS_REGION ?: 'us-east-1'
-                    env.BRANCH_ALLOWED = env.PIPELINE_BRANCH_ALLOWED ?: 'Jeffery'
-                    def backendChoice = params.BACKEND_DIR ?: 'demo'
+                    env.BRANCH_ALLOWED = env.PIPELINE_BRANCH_ALLOWED ?: 'main'
+                    def backendChoice = params.BACKEND_DIR ?: 'production'
                     env.BACKEND = (backendChoice == 'production') ? 'backend' : 'demo-backend'
                     env.TAG_PREFIX = backendChoice == 'production' ? (env.PIPELINE_TAG_PREFIX_PROD ?: 'prod') : (env.PIPELINE_TAG_PREFIX_DEMO ?: 'demo')
                     env.STACK_NAME = (backendChoice == 'production') ? (env.PIPELINE_STACK_PROD ?: 'flask-prod-backend') : (env.PIPELINE_STACK_DEMO ?: 'flask-demo-backend')
@@ -67,7 +67,7 @@ pipeline {
             }
         }
 
-        stage('Validate Jeffery Branch') {
+        stage('Validate Production Branch') {
             steps {
                 script {
                     def branchName = env.GIT_BRANCH ?: 'unknown'
@@ -82,7 +82,7 @@ pipeline {
 
                     if (!branchName.contains(env.BRANCH_ALLOWED)) {
                         currentBuild.result = 'NOT_BUILT'
-                        error("❌ This CD pipeline is designed for the Jeffery branch only!\n" +
+                        error("❌ This CD pipeline is restricted to branch: ${env.BRANCH_ALLOWED}\n" +
                               "   Current branch: ${branchName}\n" +
                               "   Expected branch: ${env.BRANCH_ALLOWED}")
                     }
@@ -499,8 +499,8 @@ pipeline {
                 echo 'Common issues and solutions:'
                 echo ''
                 echo '  1. Branch validation failed:'
-                echo '     - This pipeline only runs on Jeffery branch'
-                echo '     - For development, use Jenkinsfile-CI on Jeffery branch'
+                echo "     - This pipeline only runs on branch: ${env.BRANCH_ALLOWED}"
+                echo '     - For other branches, run manually or adjust PIPELINE_BRANCH_ALLOWED'
                 echo '     - Check current branch: git branch'
                 echo ''
                 echo '  2. No ECR image found:'
