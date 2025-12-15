@@ -4,22 +4,35 @@ This file provides guidance to Claude Code (claude.ai/code) when working with co
 
 ## Project Overview
 
-This is a **CI/CD demonstration project** showcasing a complete development pipeline from local Flask development to AWS cloud deployment.
+This project combines an **AI Generation Application** with a **CI/CD Pipeline** for automated deployment to AWS Lambda.
 
-**Current Status:** Phase 8 COMPLETE - Refined CI/CD implementation order:
-- ✅ Phase 1: Local Flask REST API
-- ✅ Phase 2: Docker containerization
-- ✅ Phase 3a: Manual CI testing (build/push WITHOUT Jenkins)
-- ✅ Phase 3b: Manual CD testing (deploy/verify WITHOUT Jenkins)
-- ✅ Phase 4: Jenkinsfile preparation (define pipelines as Git-committed code)
-- ✅ Phase 5: Jenkins EC2 deployment (one-time, pulls configs from Git)
-- ✅ Phase 6: Jenkins pipeline testing (CI and CD validated separately)
-- ✅ Phase 7: End-to-end automation (webhooks → Jenkins → AWS)
-- ✅ Phase 8: Implementation order refinement
-  - Philosophy: **Prove → Codify → Automate**
-  - Manual testing BEFORE Jenkins deployment
-  - One-time EC2 deployment (no redeploy cycles)
-  - Higher confidence, lower risk, faster debugging
+### Two Main Components:
+
+1. **AI Generation Application** (`backend/`)
+   - Flask REST API with AI-powered image and music generation
+   - HuggingFace Stable Diffusion XL for images
+   - Suno API for music (async)
+   - AWS S3 for storage, DynamoDB for history
+
+2. **CI/CD Pipeline**
+   - Jenkins automation with GitHub webhooks
+   - Docker containers for AWS Lambda
+   - SAM for Infrastructure as Code
+
+### Documentation Structure
+
+| Document | Description |
+|----------|-------------|
+| [docs/QUICK_START.md](docs/QUICK_START.md) | 5-minute setup guide |
+| [docs/ARCHITECTURE.md](docs/ARCHITECTURE.md) | System diagrams |
+| [docs/APPLICATION.md](docs/APPLICATION.md) | Backend API docs |
+| [docs/CI_CD.md](docs/CI_CD.md) | Pipeline docs |
+| [docs/TESTING.md](docs/TESTING.md) | Testing guide |
+| [docs/SCRIPTS.md](docs/SCRIPTS.md) | Script reference |
+| [docs/CONTRIBUTING.md](docs/CONTRIBUTING.md) | Contribution guide |
+| [docs/TROUBLESHOOTING.md](docs/TROUBLESHOOTING.md) | Common issues |
+
+**Philosophy:** Prove → Codify → Automate
 
 ## Common Development Commands
 
@@ -154,59 +167,23 @@ The architecture builds progressively, with each phase adding capability:
 - **AWS SAM CLI** for infrastructure deployment
 - **AWS Services**: ECR, Lambda (container), API Gateway, CloudWatch
 
-## Project Structure (Planned)
+## Project Structure
 
 ```
-aws-lab-flask-ci-cd/
-├── backend/
-│   ├── src/
-│   │   └── app.py              # Flask app with endpoints & CloudWatch-compatible logging
-│   ├── tests/
-│   │   ├── unit/               # Flask test client unit tests
-│   │   └── integration/        # Full request/response integration tests
-│   ├── requirements.txt        # Flask, gunicorn, pytest
-│   ├── Dockerfile              # Multi-stage build for Lambda container compatibility
-│   └── .dockerignore
-├── ci/
-│   ├── Jenkinsfile-CI          # CI pipeline (test, build, push)
-│   └── Jenkinsfile-CD          # CD pipeline (deploy, verify)
-├── specs/                      # Comprehensive planning documentation (completed)
-├── .gitignore
-└── README.md
+AWS_final_project/
+├── backend/                     # Production AI backend
+│   ├── src/app.py              # Flask application
+│   ├── src/db.py               # DynamoDB helpers
+│   └── tests/                  # 17 tests (12 unit + 5 integration)
+├── demo-backend/               # CI/CD validation backend
+├── jenkins-pipeline-setting/   # Jenkinsfiles (CI and CD)
+├── aws/                        # SAM templates
+├── scripts/
+│   ├── local/                  # Local testing scripts
+│   └── jenkins/                # CI/CD automation scripts
+├── docs/                       # Main documentation
+└── specs/                      # Design documents
 ```
-
-## Implementation Status
-
-**CURRENT STATE: PHASE 7 COMPLETE - PRODUCTION READY**
-
-All 7 phases complete with full CI/CD automation, Jenkins EC2 deployment, separated CI/CD pipelines, and comprehensive scripts.
-
-### Implementation Order (Phase 8 Refinement)
-
-**Philosophy: Prove → Codify → Automate**
-
-When implementing this project, follow this sequence:
-
-1. Create directory structure (backend/src/, backend/tests/, ci/)
-2. Add .gitignore and .dockerignore files
-3. Create requirements.txt with Flask, gunicorn, pytest
-4. Implement Flask app in backend/src/app.py
-5. Write unit tests for /health endpoint
-6. Write integration tests for /echo endpoint
-7. Create Dockerfile with Lambda-compatible runtime
-8. Create SAM template for AWS deployment
-9. **Phase 3a: Test CI manually** - Run pytest, docker build, docker push to ECR (WITHOUT Jenkins)
-10. **Phase 3b: Test CD manually** - Run sam validate, sam deploy, verify endpoints (WITHOUT Jenkins)
-11. **Phase 4: Create Jenkinsfile-CI locally** - Mirror Phase 3a manual steps
-12. **Phase 4: Create Jenkinsfile-CD locally** - Mirror Phase 3b manual steps
-13. **Phase 4: Commit Jenkinsfiles to Git** - Version control pipeline definitions
-14. **Phase 5: Deploy Jenkins on EC2** - Provision with pre-defined pipelines from Git
-15. **Phase 6: Test CI pipeline in Jenkins** - Verify automation of Phase 3a
-16. **Phase 6: Test CD pipeline in Jenkins** - Verify automation of Phase 3b
-17. **Phase 7: Configure GitHub webhooks** - Enable full automation (Push → Jenkins → AWS)
-18. **Phase 8: Test rollback scenario** - Validate recovery capabilities
-
-**Key Insight:** Test each step manually (Steps 9-10) BEFORE automating with Jenkins (Steps 14-16)
 
 ## Important Constraints
 
