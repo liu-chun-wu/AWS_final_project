@@ -229,6 +229,60 @@ API_GATEWAY_URL=http://localhost:8000
 
 ---
 
+## AWS Services Used
+
+The application integrates with the following AWS services:
+
+### Amazon S3 (Simple Storage Service)
+
+**Purpose:** Object storage for generated content
+
+- Stores AI-generated images in `Images/` prefix
+- Stores AI-generated audio in `Audios/` prefix
+- Files named with timestamp and UUID: `{timestamp}_{uuid}.{ext}`
+- Presigned URLs provide secure, time-limited access (1 hour expiry)
+- No public bucket access required
+
+**Usage in Code:**
+```python
+s3_client.upload_fileobj(file, bucket, key)
+url = s3_client.generate_presigned_url('get_object', Params={...}, ExpiresIn=3600)
+```
+
+### Amazon DynamoDB
+
+**Purpose:** NoSQL database for user history tracking
+
+- Table: `UserRecords`
+- Partition key: `user_id` (String)
+- Sort key: `record_id` (String)
+- Stores: prompt, type (image/audio), S3 URL, timestamp
+- Non-fatal: Application works even if DynamoDB fails
+
+**Usage in Code:**
+```python
+table.put_item(Item={
+    'user_id': user_id,
+    'record_id': record_id,
+    'prompt': prompt,
+    'type': 'image',
+    'url': download_url,
+    'created_at': timestamp
+})
+```
+
+### AWS Lambda
+
+**Purpose:** Serverless compute for the Flask application
+
+- Container-based deployment (not ZIP)
+- Uses AWS Lambda Web Adapter for Flask compatibility
+- Auto-scales based on request volume
+- Timeout: 300 seconds (for AI API calls)
+- Memory: 512 MB
+
+---
+
 ## Local Development
 
 ### Setup

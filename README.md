@@ -132,6 +132,52 @@ git push origin Jeffery
 
 See [docs/CI_CD.md](docs/CI_CD.md) for details.
 
+## AWS Services
+
+| Service | Purpose |
+|---------|---------|
+| **Amazon ECR** | Container Registry - stores Docker images |
+| **AWS Lambda** | Serverless Compute - runs Flask app |
+| **API Gateway** | Exposes Lambda as HTTP endpoints |
+| **Amazon S3** | Stores generated images and audio |
+| **Amazon DynamoDB** | Tracks user generation history |
+| **Amazon CloudWatch** | Logging and monitoring |
+| **Amazon EC2** | Hosts Jenkins CI/CD server |
+
+## Screenshots
+
+### CI/CD Pipeline
+
+**CI Pipeline (Build & Push to ECR)**
+
+![CI Pipeline](images/ci-pipeline.jpeg)
+
+**CD Pipeline (Deploy to Lambda)**
+
+![CD Pipeline](images/cd-pipeline.jpeg)
+
+### AWS Infrastructure
+
+**ECR Repository**
+
+![ECR Repository](images/ECR.jpeg)
+
+**EC2 Jenkins Server**
+
+![EC2 Instance](images/ec2.jpeg)
+
+### Monitoring
+
+**CloudWatch Dashboard**
+
+![CloudWatch](images/cloudwatch.jpeg)
+
+### Jenkins
+
+**Jenkins Dashboard**
+
+![Jenkins Dashboard](images/jenkins.jpeg)
+
 ## License
 
 Educational project for cloud computing demonstration.
