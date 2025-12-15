@@ -301,7 +301,7 @@ check_ecr_images() {
         print_explain "Deployment notes:"
         print_explain "  • Lambda will pull image from ECR at deploy time"
         print_explain "  • Image must be in same region as Lambda (us-east-1)"
-        print_explain "  • Can deploy with specific tag or 'latest'"
+        print_explain "  • Deploy with the immutable tag produced by CI (e.g., prod-123-abc1234)"
     else
         print_warning "No images in ECR yet"
         echo ""

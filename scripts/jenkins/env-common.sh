@@ -9,7 +9,7 @@ export PIPELINE_ECR_REPO="${PIPELINE_ECR_REPO:-$PIPELINE_IMAGE_NAME}"
 # AWS settings
 export PIPELINE_AWS_REGION="${PIPELINE_AWS_REGION:-us-east-1}"
 
-# Branch policy
+# Branch policy (production-only webhook target)
 export PIPELINE_BRANCH_ALLOWED="${PIPELINE_BRANCH_ALLOWED:-Jeffery}"
 
 # Stack and SAM configs
@@ -17,6 +17,10 @@ export PIPELINE_STACK_DEMO="${PIPELINE_STACK_DEMO:-aws-final-project-demo}"
 export PIPELINE_STACK_PROD="${PIPELINE_STACK_PROD:-aws-final-project-prod}"
 export PIPELINE_SAM_CONFIG_DEMO="${PIPELINE_SAM_CONFIG_DEMO:-samconfig-demo.toml}"
 export PIPELINE_SAM_CONFIG_PROD="${PIPELINE_SAM_CONFIG_PROD:-samconfig-prod.toml}"
+
+# Tag prefixes per environment (shared ECR repo)
+export PIPELINE_TAG_PREFIX_DEMO="${PIPELINE_TAG_PREFIX_DEMO:-demo}"
+export PIPELINE_TAG_PREFIX_PROD="${PIPELINE_TAG_PREFIX_PROD:-prod}"
 
 # GitHub / Jenkins metadata
 export PIPELINE_GITHUB_REPO="${PIPELINE_GITHUB_REPO:-https://github.com/liu-chun-wu/AWS_final_project.git}"

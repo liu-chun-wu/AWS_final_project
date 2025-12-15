@@ -1,17 +1,8 @@
 pipeline {
     agent any
 
-    parameters {
-        choice(
-            name: 'BACKEND_DIR',
-            choices: ['demo', 'production'],
-            description: 'Which backend to build and test?'
-        )
-    }
-
     environment {
         // Minimal upfront defaults; real values loaded in "Load Pipeline Config"
-        IMAGE_TAG = "${BUILD_NUMBER}"
         TOOLS_PATH = "${env.WORKSPACE}/.aws-cli/bin:/usr/local/bin:/usr/bin:/bin"
     }
 
@@ -20,6 +11,14 @@ pipeline {
             steps {
                 echo 'Checking out source code from repository...'
                 checkout scm
+                script {
+                    def msg = sh(script: "git log -1 --pretty=%s", returnStdout: true).trim()
+                    def commit = sh(script: "git rev-parse --short HEAD", returnStdout: true).trim()
+                    currentBuild.displayName = "#${BUILD_NUMBER} ${commit}"
+                    currentBuild.description = msg
+                    echo "Commit: ${commit}"
+                    echo "Message: ${msg}"
+                }
                 echo 'Source code checked out successfully'
             }
         }
@@ -43,21 +42,28 @@ pipeline {
                             }
                         }
                     }
-                    def backendChoice = params.BACKEND_DIR ?: 'demo'
+                    def backendChoice = params.BACKEND_DIR ?: 'production'
                     env.BACKEND = (backendChoice == 'production') ? 'backend' : 'demo-backend'
+                    env.TAG_PREFIX = (backendChoice == 'production') ? (env.PIPELINE_TAG_PREFIX_PROD ?: 'prod') : (env.PIPELINE_TAG_PREFIX_DEMO ?: 'demo')
                     env.IMAGE_NAME = env.PIPELINE_IMAGE_NAME ?: 'aws-final-project-repo'
                     env.AWS_REGION = env.PIPELINE_AWS_REGION ?: 'us-east-1'
-                    env.BRANCH_ALLOWED = env.PIPELINE_BRANCH_ALLOWED ?: 'Jeffery'
+                    env.BRANCH_ALLOWED = env.PIPELINE_BRANCH_ALLOWED ?: 'main'
+                    env.GIT_SHA = sh(script: 'git rev-parse --short HEAD', returnStdout: true).trim()
+                    // Immutable image tag: <prefix>-<build>-<gitsha>
+                    env.IMAGE_TAG = "${env.TAG_PREFIX}-${BUILD_NUMBER}-${env.GIT_SHA}"
                     echo "Loaded pipeline config:"
                     echo "  image=${env.IMAGE_NAME}"
                     echo "  region=${env.AWS_REGION}"
                     echo "  branch=${env.BRANCH_ALLOWED}"
                     echo "  backend=${env.BACKEND} (choice=${backendChoice})"
+                    echo "  tag prefix=${env.TAG_PREFIX}"
+                    echo "  image tag=${env.IMAGE_TAG}"
+                    echo "  git sha=${env.GIT_SHA}"
                 }
             }
         }
 
-        stage('Validate Jeffery Branch') {
+        stage('Validate Production Branch') {
             steps {
                 script {
                     def branchName = env.GIT_BRANCH ?: 'unknown'
@@ -70,10 +76,10 @@ pipeline {
 
                     if (!branchName.contains(env.BRANCH_ALLOWED)) {
                         currentBuild.result = 'NOT_BUILT'
-                        error("❌ This CI pipeline is designed for the Jeffery branch only!\n" +
+                        error("❌ This CI pipeline is restricted to branch: ${env.BRANCH_ALLOWED}\n" +
                               "   Current branch: ${branchName}\n" +
                               "   Expected branch: ${env.BRANCH_ALLOWED}\n\n" +
-                              "   For main branch deployment, use Jenkinsfile-CD instead.")
+                              "   For other branches, run jobs manually or update PIPELINE_BRANCH_ALLOWED.")
                     }
 
                     echo "✅ Branch validated (${env.BRANCH_ALLOWED})"
@@ -179,12 +185,9 @@ pipeline {
                         -t ${IMAGE_NAME}:${IMAGE_TAG} \\
                         ${BACKEND}/
 
-                    docker tag ${IMAGE_NAME}:${IMAGE_TAG} ${IMAGE_NAME}:latest
-
                     echo ""
                     echo "✅ Docker image built successfully"
                     echo "   Image: ${IMAGE_NAME}:${IMAGE_TAG}"
-                    echo "   Also tagged as: ${IMAGE_NAME}:latest"
                   '''
                 }
             }
@@ -208,8 +211,7 @@ pipeline {
                     fi
                     ECR_REGISTRY="${ACCOUNT_ID}.dkr.ecr.${AWS_REGION}.amazonaws.com"
                     ECR_IMAGE="${ECR_REGISTRY}/${IMAGE_NAME}:${IMAGE_TAG}"
-                    ECR_IMAGE_LATEST="${ECR_REGISTRY}/${IMAGE_NAME}:latest"
-                    ECR_IMAGE_JENKINS="${ECR_REGISTRY}/${IMAGE_NAME}:jenkins-build"
+                    ECR_IMAGE="${ECR_REGISTRY}/${IMAGE_NAME}:${IMAGE_TAG}"
 
                     # Ensure repo exists
                     aws ecr describe-repositories --repository-name ${IMAGE_NAME} --region ${AWS_REGION} >/dev/null 2>&1 || \
@@ -218,16 +220,16 @@ pipeline {
                     aws ecr get-login-password --region ${AWS_REGION} | docker login --username AWS --password-stdin ${ECR_REGISTRY}
 
                     docker tag ${IMAGE_NAME}:${IMAGE_TAG} ${ECR_IMAGE}
-                    docker tag ${IMAGE_NAME}:${IMAGE_TAG} ${ECR_IMAGE_LATEST}
-                    docker tag ${IMAGE_NAME}:${IMAGE_TAG} ${ECR_IMAGE_JENKINS}
-
                     docker push ${ECR_IMAGE}
-                    docker push ${ECR_IMAGE_LATEST}
-                    docker push ${ECR_IMAGE_JENKINS}
+
+                    IMAGE_DIGEST=$(aws ecr describe-images \
+                      --repository-name ${IMAGE_NAME} \
+                      --image-ids imageTag=${IMAGE_TAG} \
+                      --query 'imageDetails[0].imageDigest' \
+                      --output text)
 
                     echo "ECR_IMAGE=${ECR_IMAGE}" > push_vars.txt
-                    echo "ECR_IMAGE_LATEST=${ECR_IMAGE_LATEST}" >> push_vars.txt
-                    echo "ECR_IMAGE_JENKINS=${ECR_IMAGE_JENKINS}" >> push_vars.txt
+                    echo "IMAGE_DIGEST=${IMAGE_DIGEST}" >> push_vars.txt
                   '''
                   script {
                     def varsFile = readFile('push_vars.txt').trim().split('\n')
@@ -236,8 +238,7 @@ pipeline {
                         env."${k}" = v
                     }
                     echo "Recorded ECR image: ${env.ECR_IMAGE}"
-                    echo "Latest tag: ${env.ECR_IMAGE_LATEST}"
-                    echo "Jenkins tag: ${env.ECR_IMAGE_JENKINS}"
+                    echo "Digest: ${env.IMAGE_DIGEST}"
                   }
                 }
             }
@@ -254,8 +255,7 @@ pipeline {
                 echo "Backend: ${env.BACKEND}"
                 echo "Docker image: ${IMAGE_NAME}:${IMAGE_TAG}"
                 echo "ECR image: ${env.ECR_IMAGE ?: 'not pushed'}"
-                echo "ECR latest: ${env.ECR_IMAGE_LATEST ?: 'not pushed'}"
-                echo "ECR jenkins: ${env.ECR_IMAGE_JENKINS ?: 'not pushed'}"
+                echo "Digest: ${env.IMAGE_DIGEST ?: 'unknown'}"
                 echo ''
                 echo 'Results:'
                 echo '  ✓ All tests passed'
@@ -263,9 +263,9 @@ pipeline {
                 echo '  ✓ Image pushed to ECR'
                 echo ''
                 echo 'Next steps:'
-                echo "  1. Use IMAGE_TAG=${IMAGE_TAG} in CD job (or auto-detect latest)."
+                echo "  1. Use IMAGE_TAG=${IMAGE_TAG} in CD job (or auto-detect newest immutable tag)."
                 echo "  2. ECR image: ${env.ECR_IMAGE}"
-                echo "  3. Alternate tags: latest, jenkins-build"
+                echo "  3. Digest: ${env.IMAGE_DIGEST}"
                 echo '============================================'
             }
         }
@@ -280,8 +280,8 @@ pipeline {
                 echo 'Common issues and solutions:'
                 echo ''
                 echo '  1. Branch validation failed:'
-                echo '     - This pipeline only runs on Jeffery branch'
-                echo '     - For main branch, use Jenkinsfile-CD instead'
+                echo "     - This pipeline only runs on branch: ${env.BRANCH_ALLOWED}"
+                echo '     - For other branches, run manually or adjust PIPELINE_BRANCH_ALLOWED'
                 echo '     - Check current branch: git branch'
                 echo ''
                 echo '  2. Tests failing:'

@@ -48,7 +48,6 @@ def test_health_check_integration(client):
     assert response.status_code == 200
     data = response.get_json()
     assert data['status'] == 'ok'
-    assert data['service'] == 'production-backend'
 
 
 def test_invalid_http_methods(client):

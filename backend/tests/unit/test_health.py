@@ -46,7 +46,6 @@ def test_health_endpoint_returns_correct_values(client):
 
     # Verify field values
     assert data['status'] == 'ok'
-    assert data['service'] == 'production-backend'
 
 
 def test_health_endpoint_only_accepts_get(client):

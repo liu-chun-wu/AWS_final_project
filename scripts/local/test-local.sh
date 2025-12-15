@@ -138,16 +138,22 @@ print_info() {
 ################################################################################
 
 check_prerequisites() {
-    print_header "Step 1: Checking Prerequisites"
+print_header "Step 1: Checking Prerequisites"
 
-    # Check Python
-    print_info "Checking Python..."
-    if ! command -v python3 &> /dev/null; then
-        print_error "Python 3 is not installed"
-        exit 1
-    fi
-    PYTHON_VERSION=$(python3 --version)
-    print_success "Python found: ${PYTHON_VERSION}"
+# Pick Python interpreter (prefer 3.11 to match Lambda/runtime wheels)
+if command -v python3.11 >/dev/null 2>&1; then
+    PY_BIN="python3.11"
+else
+    PY_BIN="python3"
+fi
+
+print_info "Using Python interpreter: $PY_BIN"
+if ! command -v "$PY_BIN" &> /dev/null; then
+    print_error "Required Python interpreter not found: $PY_BIN"
+    exit 1
+fi
+PYTHON_VERSION=$($PY_BIN --version)
+print_success "Python found: ${PYTHON_VERSION}"
 
     # Check if backend directory exists
     print_info "Checking backend directory..."
@@ -177,27 +183,30 @@ setup_environment() {
 
     cd "${BACKEND_DIR}"
 
-    # Check if virtual environment exists
-    if [ -d ".venv" ]; then
-        print_info "Found existing virtual environment"
-        print_info "Activating..."
-        source .venv/bin/activate
-        print_success "Virtual environment activated"
-    else
-        print_info "No virtual environment found"
-        print_info "Creating new virtual environment..."
-
-        python3 -m venv .venv
-        source .venv/bin/activate
-
-        print_success "Virtual environment created"
-
-        print_info "Installing dependencies..."
-        pip install -q --upgrade pip
-        pip install -q -r requirements.txt
-
-        print_success "Dependencies installed"
+    # (Re)create venv if missing or Python interpreter changed
+    CURRENT_INTERP=""
+    if [ -x ".venv/bin/python" ]; then
+        CURRENT_INTERP=$(.venv/bin/python -c 'import sys; print(f"{sys.version_info.major}.{sys.version_info.minor}")')
     fi
+
+    DESIRED_INTERP=$($PY_BIN -c 'import sys; print(f"{sys.version_info.major}.{sys.version_info.minor}")')
+
+    if [ ! -d ".venv" ] || [ "$CURRENT_INTERP" != "$DESIRED_INTERP" ]; then
+        print_info "Creating fresh virtual environment with $PY_BIN (was: ${CURRENT_INTERP:-none})..."
+        rm -rf .venv
+        "$PY_BIN" -m venv .venv
+    else
+        print_info "Using existing virtual environment (Python $CURRENT_INTERP)"
+    fi
+
+    print_info "Activating virtual environment..."
+    source .venv/bin/activate
+    print_success "Virtual environment activated"
+
+    print_info "Ensuring dependencies are installed/up-to-date..."
+    pip install -q --upgrade pip
+    pip install -q -r requirements.txt
+    print_success "Dependencies installed"
 
     echo ""
 }

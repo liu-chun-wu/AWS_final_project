@@ -61,9 +61,11 @@ BACKEND_TYPE=""
 if [ "$1" == "--demo" ]; then
     BACKEND_TYPE="demo-backend"
     BACKEND_DIR="demo-backend"
+    TAG_PREFIX="${PIPELINE_TAG_PREFIX_DEMO:-demo}"
 elif [ "$1" == "--prod" ]; then
     BACKEND_TYPE="prod-backend"
     BACKEND_DIR="backend"
+    TAG_PREFIX="${PIPELINE_TAG_PREFIX_PROD:-prod}"
 else
     echo "╔════════════════════════════════════════════════════════════════╗"
     echo "║  ERROR: Backend type required                                  ║"
@@ -92,7 +94,19 @@ source "${SCRIPT_DIR}/env-common.sh"
 
 AWS_REGION="${PIPELINE_AWS_REGION:-${AWS_REGION:-us-east-1}}"
 REPO_NAME="${PIPELINE_ECR_REPO:-aws-final-project-repo}"
-IMAGE_TAG="${IMAGE_TAG:-manual-test}"  # Can be overridden via env var
+
+# Derive immutable image tag: <env-prefix>-<build>-<gitsha>
+BUILD_ID="${BUILD_NUMBER:-$(date +%s)}"
+GIT_SHA=$(git -C "$PROJECT_ROOT" rev-parse --short HEAD)
+TAG_PREFIX="${TAG_PREFIX:-${PIPELINE_TAG_PREFIX_DEMO:-demo}}"
+IMAGE_TAG="${TAG_PREFIX}-${BUILD_ID}-${GIT_SHA}"
+
+TAG_PATTERN="^${TAG_PREFIX}-[0-9]+-[0-9a-f]+$"
+if ! [[ "$IMAGE_TAG" =~ $TAG_PATTERN ]]; then
+    echo "ERROR: IMAGE_TAG '$IMAGE_TAG' does not match expected pattern '$TAG_PATTERN'"
+    echo "Check TAG_PREFIX, BUILD_ID, and git availability."
+    exit 1
+fi
 
 ################################################################################
 # Helper Functions for Output Formatting
@@ -191,9 +205,37 @@ run_tests() {
 
     cd "$PROJECT_ROOT/$BACKEND_DIR"
 
+    # Choose Python interpreter (prefer 3.11 to match Lambda/runtime wheels)
+    if command -v python3.11 >/dev/null 2>&1; then
+        PY_BIN="python3.11"
+    else
+        PY_BIN="python3"
+    fi
+
+    # Recreate venv if missing or interpreter version changed
+    CURRENT_INTERP=""
+    if [ -x ".venv/bin/python" ]; then
+        CURRENT_INTERP=$(.venv/bin/python -c 'import sys; print(f"{sys.version_info.major}.{sys.version_info.minor}")')
+    fi
+    DESIRED_INTERP=$($PY_BIN -c 'import sys; print(f"{sys.version_info.major}.{sys.version_info.minor}")')
+
+    if [ ! -d ".venv" ] || [ "$CURRENT_INTERP" != "$DESIRED_INTERP" ]; then
+        print_info "Creating fresh virtual environment with $PY_BIN (was: ${CURRENT_INTERP:-none})..."
+        rm -rf .venv
+        $PY_BIN -m venv .venv
+    else
+        print_info "Using existing virtual environment (Python $CURRENT_INTERP)"
+    fi
+
+    print_info "Activating virtual environment..."
+    # shellcheck disable=SC1091
+    source .venv/bin/activate
+    print_success "Virtual environment activated"
+
     # Check if requirements.txt exists
     if [ -f "requirements.txt" ]; then
         print_info "Installing Python dependencies..."
+        print_command "pip install -q --upgrade pip"
         print_command "pip install -q -r requirements.txt"
         echo ""
 
@@ -203,6 +245,7 @@ run_tests() {
         print_explain "  • Required for tests to run"
         echo ""
 
+        pip install -q --upgrade pip
         pip install -q -r requirements.txt
 
         print_success "Dependencies installed"
@@ -460,21 +503,14 @@ tag_image() {
     print_info "Docker images must be tagged with ECR URI before pushing"
     echo ""
 
-    print_info "Tagging commands:"
+    print_info "Tagging command:"
     print_command "docker tag $REPO_NAME:$IMAGE_TAG $ECR_REPO_URI:$IMAGE_TAG"
-    print_command "docker tag $REPO_NAME:$IMAGE_TAG $ECR_REPO_URI:latest"
     echo ""
 
     print_explain "Tagging strategy explained:"
-    print_explain "  • Tag 1: $ECR_REPO_URI:$IMAGE_TAG"
-    print_explain "    → Specific version tag (e.g., 'manual-test', 'jeffery-123')"
-    print_explain "    → Allows tracking specific builds"
-    print_explain "    → Can rollback to this version if needed"
-    print_explain ""
-    print_explain "  • Tag 2: $ECR_REPO_URI:latest"
-    print_explain "    → Generic 'latest' tag (always points to newest)"
-    print_explain "    → Convenient for development/testing"
-    print_explain "    → Not recommended for production (use specific versions)"
+    print_explain "  • Single immutable tag: $ECR_REPO_URI:$IMAGE_TAG"
+    print_explain "    → Pattern: <prefix>-<build>-<gitsha>"
+    print_explain "    → Guarantees CloudFormation sees a new value every build"
     echo ""
 
     print_info "Understanding Docker tags:"
@@ -487,7 +523,6 @@ tag_image() {
     print_info "Tagging..."
 
     docker tag $REPO_NAME:$IMAGE_TAG $ECR_REPO_URI:$IMAGE_TAG
-    docker tag $REPO_NAME:$IMAGE_TAG $ECR_REPO_URI:latest
 
     print_success "Image tagged for ECR"
     echo ""
@@ -496,7 +531,7 @@ tag_image() {
     docker images | grep -E "REPOSITORY|$REPO_NAME|$ECR_REPO_URI" | head -10
     echo ""
 
-    print_explain "Notice: Multiple tags point to same IMAGE ID (not duplicated)"
+    print_explain "Notice: Immutable tag only; no env-latest to avoid stale deployments"
     echo ""
 }
 
@@ -511,9 +546,8 @@ push_image() {
     print_info "This may take 2-5 minutes depending on image size and network speed"
     echo ""
 
-    print_info "Push commands:"
+    print_info "Push command:"
     print_command "docker push $ECR_REPO_URI:$IMAGE_TAG"
-    print_command "docker push $ECR_REPO_URI:latest"
     echo ""
 
     print_explain "What happens during push:"
@@ -532,7 +566,7 @@ push_image() {
     print_info "  • Base image layers cached in ECR"
     echo ""
 
-    print_info "Pushing $IMAGE_TAG tag..."
+    print_info "Pushing immutable tag $IMAGE_TAG..."
     echo ""
 
     if docker push $ECR_REPO_URI:$IMAGE_TAG; then
@@ -541,20 +575,8 @@ push_image() {
         print_error "Push failed for tag: $IMAGE_TAG"
         exit 1
     fi
-
     echo ""
-    print_info "Pushing latest tag..."
-    echo ""
-
-    if docker push $ECR_REPO_URI:latest; then
-        print_success "Pushed: $ECR_REPO_URI:latest"
-    else
-        print_error "Push failed for tag: latest"
-        exit 1
-    fi
-
-    echo ""
-    print_success "Both tags pushed to ECR successfully"
+    print_success "Image pushed to ECR successfully"
     echo ""
 }
 
@@ -632,7 +654,7 @@ display_summary() {
     print_info "What was accomplished:"
     print_info "  ✓ Tests passed (code validated)"
     print_info "  ✓ Docker image built (platform: linux/amd64)"
-    print_info "  ✓ Image tagged with version and latest"
+    print_info "  ✓ Image tagged with immutable version"
     print_info "  ✓ Pushed to ECR repository"
     print_info "  ✓ Verified image exists in ECR"
     echo ""
@@ -668,7 +690,7 @@ display_summary() {
     print_info "View image in AWS Console:"
     print_info "  1. Open AWS Console → ECR service"
     print_info "  2. Click repository: $REPO_NAME"
-    print_info "  3. See image with tags: $IMAGE_TAG, latest"
+    print_info "  3. See image tag: $IMAGE_TAG"
     echo ""
 
     print_info "Pull this image to another machine:"

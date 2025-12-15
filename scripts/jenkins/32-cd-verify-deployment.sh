@@ -309,6 +309,11 @@ test_echo_endpoint() {
     print_info "Echo endpoint tests request/response flow with POST data"
     echo ""
 
+    if [ "$BACKEND_TYPE" != "demo-backend" ]; then
+        print_warning "Skipping /echo verification for production backend (endpoint not present)"
+        return 0
+    fi
+
     # Create test payload with timestamp
     TEST_DATA='{"message": "Phase 3b verification test", "timestamp": "'$(date -u +%Y-%m-%dT%H:%M:%SZ)'"}'
 

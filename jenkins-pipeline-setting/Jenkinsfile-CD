@@ -1,19 +1,6 @@
 pipeline {
     agent any
 
-    parameters {
-        choice(
-            name: 'BACKEND_DIR',
-            choices: ['demo', 'production'],
-            description: 'Which backend to deploy?'
-        )
-        string(
-            name: 'IMAGE_TAG',
-            defaultValue: '',
-            description: 'ECR image tag to deploy (leave empty to auto-detect latest from ECR)'
-        )
-    }
-
     environment {
         // Minimal upfront defaults; real values loaded in "Load Pipeline Config"
         TOOLS_PATH = "${env.WORKSPACE}/.aws-cli/bin:${env.WORKSPACE}/.sam-cli/bin:/usr/local/bin:/usr/bin:/bin"
@@ -24,6 +11,14 @@ pipeline {
             steps {
                 echo 'Checking out source code from repository...'
                 checkout scm
+                script {
+                    def msg = sh(script: "git log -1 --pretty=%s", returnStdout: true).trim()
+                    def commit = sh(script: "git rev-parse --short HEAD", returnStdout: true).trim()
+                    currentBuild.displayName = "#${BUILD_NUMBER} ${commit}"
+                    currentBuild.description = msg
+                    echo "Commit: ${commit}"
+                    echo "Message: ${msg}"
+                }
                 echo 'Source code checked out successfully'
             }
         }
@@ -49,9 +44,10 @@ pipeline {
                     }
                     env.IMAGE_NAME = env.PIPELINE_IMAGE_NAME ?: 'aws-final-project-repo'
                     env.AWS_REGION = env.PIPELINE_AWS_REGION ?: 'us-east-1'
-                    env.BRANCH_ALLOWED = env.PIPELINE_BRANCH_ALLOWED ?: 'Jeffery'
-                    def backendChoice = params.BACKEND_DIR ?: 'demo'
+                    env.BRANCH_ALLOWED = env.PIPELINE_BRANCH_ALLOWED ?: 'main'
+                    def backendChoice = params.BACKEND_DIR ?: 'production'
                     env.BACKEND = (backendChoice == 'production') ? 'backend' : 'demo-backend'
+                    env.TAG_PREFIX = backendChoice == 'production' ? (env.PIPELINE_TAG_PREFIX_PROD ?: 'prod') : (env.PIPELINE_TAG_PREFIX_DEMO ?: 'demo')
                     env.STACK_NAME = (backendChoice == 'production') ? (env.PIPELINE_STACK_PROD ?: 'flask-prod-backend') : (env.PIPELINE_STACK_DEMO ?: 'flask-demo-backend')
                     env.SAM_CONFIG = (backendChoice == 'production') ? (env.PIPELINE_SAM_CONFIG_PROD ?: 'samconfig-prod.toml') : (env.PIPELINE_SAM_CONFIG_DEMO ?: 'samconfig-demo.toml')
                     echo "Loaded pipeline config:"
@@ -59,13 +55,14 @@ pipeline {
                     echo "  region=${env.AWS_REGION}"
                     echo "  branch=${env.BRANCH_ALLOWED}"
                     echo "  backend=${env.BACKEND} (choice=${backendChoice})"
+                    echo "  tag prefix=${env.TAG_PREFIX}"
                     echo "  stack=${env.STACK_NAME}"
                     echo "  sam config=${env.SAM_CONFIG}"
                 }
             }
         }
 
-        stage('Validate Jeffery Branch') {
+        stage('Validate Production Branch') {
             steps {
                 script {
                     def branchName = env.GIT_BRANCH ?: 'unknown'
@@ -80,7 +77,7 @@ pipeline {
 
                     if (!branchName.contains(env.BRANCH_ALLOWED)) {
                         currentBuild.result = 'NOT_BUILT'
-                        error("❌ This CD pipeline is designed for the Jeffery branch only!\n" +
+                        error("❌ This CD pipeline is restricted to branch: ${env.BRANCH_ALLOWED}\n" +
                               "   Current branch: ${branchName}\n" +
                               "   Expected branch: ${env.BRANCH_ALLOWED}")
                     }
@@ -170,16 +167,19 @@ pipeline {
 
                     if (params.IMAGE_TAG?.trim()) {
                         env.DEPLOY_IMAGE_TAG = params.IMAGE_TAG
+                        if (!env.DEPLOY_IMAGE_TAG.startsWith(env.TAG_PREFIX + "-")) {
+                            error("❌ Provided IMAGE_TAG '${env.DEPLOY_IMAGE_TAG}' must start with '${env.TAG_PREFIX}-' for ${env.BACKEND}")
+                        }
                         echo "✅ Using explicitly specified image tag: ${env.DEPLOY_IMAGE_TAG}"
                     } else {
-                        echo "No IMAGE_TAG parameter provided. Auto-detecting latest image from ECR..."
+                        echo "No IMAGE_TAG parameter provided. Auto-detecting newest immutable tag from ECR..."
                         withCredentials([
                             [$class: 'AmazonWebServicesCredentialsBinding', credentialsId: 'aws-lab-creds', accessKeyVariable: 'AWS_ACCESS_KEY_ID', secretKeyVariable: 'AWS_SECRET_ACCESS_KEY'],
                             string(credentialsId: 'aws-session-token', variable: 'AWS_SESSION_TOKEN')
                         ]) {
                             sh '''
                                 export PATH="${TOOLS_PATH}"
-                                set +e
+                                set -e
                                 # Ensure repository exists (idempotent)
                                 aws ecr describe-repositories \
                                     --repository-name ${IMAGE_NAME} \
@@ -191,24 +191,18 @@ pipeline {
                                         --region ${AWS_REGION}
                                     }
 
-                                # Fetch newest tag by push time
+                                # Fetch newest immutable tag (pattern prefix-build-sha)
                                 IMAGE_TAG=$(aws ecr describe-images \
                                     --repository-name ${IMAGE_NAME} \
                                     --region ${AWS_REGION} \
-                                    --query 'sort_by(imageDetails,&imagePushedAt)[-1].imageTags[0]' \
-                                    --output text 2>/dev/null)
-
-                                STATUS=$?
-                                if [ $STATUS -ne 0 ]; then
-                                    echo "❌ AWS CLI error while describing images"
-                                    exit $STATUS
-                                fi
+                                    --query "reverse(sort_by(imageDetails,&imagePushedAt))[].imageTags[]" \
+                                    --output text | tr '\t' '\n' | grep -E \"^${TAG_PREFIX}-[0-9]+-[0-9a-f]+$\" | head -1)
 
                                 if [ -z "$IMAGE_TAG" ] || [ "$IMAGE_TAG" = "None" ]; then
-                                    echo "❌ No images found in ECR repository: ${IMAGE_NAME}"
+                                    echo "❌ No immutable images found in ECR repository: ${IMAGE_NAME}"
                                     echo ""
                                     echo "Push an image first, e.g.:"
-                                    echo "  ./scripts/jenkins/20-ci-build-and-push.sh --demo"
+                                    echo "  ./scripts/jenkins/20-ci-build-and-push.sh --prod"
                                     echo "or run CI to publish one."
                                     exit 1
                                 fi
@@ -392,40 +386,44 @@ pipeline {
 
                         echo ""
 
-                        # Test /echo endpoint
-                        echo "============================================"
-                        echo "Testing /echo endpoint..."
-                        echo "============================================"
-                        TEST_DATA='{"message": "Jenkins CD verification", "build": "'${BUILD_NUMBER}'"}'
+                        if [ "${BACKEND}" = "demo-backend" ]; then
+                            # Test /echo endpoint (demo only)
+                            echo "============================================"
+                            echo "Testing /echo endpoint..."
+                            echo "============================================"
+                            TEST_DATA='{"message": "Jenkins CD verification", "build": "'${BUILD_NUMBER}'"}'
 
-                        ECHO_RESPONSE=$(curl -s -w "\\nHTTP_STATUS:%{http_code}" \
-                            -X POST \
-                            -H "Content-Type: application/json" \
-                            -d "$TEST_DATA" \
-                            "$API_URL/echo")
+                            ECHO_RESPONSE=$(curl -s -w "\\nHTTP_STATUS:%{http_code}" \
+                                -X POST \
+                                -H "Content-Type: application/json" \
+                                -d "$TEST_DATA" \
+                                "$API_URL/echo")
 
-                        HTTP_STATUS=$(echo "$ECHO_RESPONSE" | grep "HTTP_STATUS" | cut -d: -f2)
-                        RESPONSE_BODY=$(echo "$ECHO_RESPONSE" | grep -v "HTTP_STATUS")
+                            HTTP_STATUS=$(echo "$ECHO_RESPONSE" | grep "HTTP_STATUS" | cut -d: -f2)
+                            RESPONSE_BODY=$(echo "$ECHO_RESPONSE" | grep -v "HTTP_STATUS")
 
-                        echo "HTTP Status: $HTTP_STATUS"
-                        echo "Request: $TEST_DATA"
-                        echo "Response: $RESPONSE_BODY"
+                            echo "HTTP Status: $HTTP_STATUS"
+                            echo "Request: $TEST_DATA"
+                            echo "Response: $RESPONSE_BODY"
 
-                        if [ "$HTTP_STATUS" = "200" ]; then
-                            echo "✅ Echo endpoint working"
+                            if [ "$HTTP_STATUS" = "200" ]; then
+                                echo "✅ Echo endpoint working"
 
-                            if echo "$RESPONSE_BODY" | grep -q "Jenkins CD verification"; then
-                                echo "✅ Response echoes request body correctly"
+                                if echo "$RESPONSE_BODY" | grep -q "Jenkins CD verification"; then
+                                    echo "✅ Response echoes request body correctly"
+                                else
+                                    echo "⚠️  Response doesn't match expected format"
+                                fi
                             else
-                                echo "⚠️  Response doesn't match expected format"
+                                echo "❌ Echo endpoint returned HTTP $HTTP_STATUS"
+                                exit 1
                             fi
-                        else
-                            echo "❌ Echo endpoint returned HTTP $HTTP_STATUS"
-                            exit 1
-                        fi
 
-                        echo ""
-                        echo "✅ All endpoint verification tests passed"
+                            echo ""
+                            echo "✅ All endpoint verification tests passed"
+                        else
+                            echo "⚠ Skipping /echo verification for production backend (endpoint not present)"
+                        fi
 
                         # Save API URL for post-build actions
                         echo "$API_URL" > /tmp/api_url.txt
@@ -490,8 +488,8 @@ pipeline {
                 echo 'Common issues and solutions:'
                 echo ''
                 echo '  1. Branch validation failed:'
-                echo '     - This pipeline only runs on Jeffery branch'
-                echo '     - For development, use Jenkinsfile-CI on Jeffery branch'
+                echo "     - This pipeline only runs on branch: ${env.BRANCH_ALLOWED}"
+                echo '     - For other branches, run manually or adjust PIPELINE_BRANCH_ALLOWED'
                 echo '     - Check current branch: git branch'
                 echo ''
                 echo '  2. No ECR image found:'

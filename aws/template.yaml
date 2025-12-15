@@ -88,19 +88,19 @@ Outputs:
     Description: "API Gateway endpoint URL for Prod stage"
     Value: !Sub "https://${FlaskDemoApi}.execute-api.${AWS::Region}.amazonaws.com/Prod/"
     Export:
-      Name: FlaskDemoApiUrl
+      Name: !Sub "${AWS::StackName}-FlaskDemoApiUrl"
 
   FlaskDemoFunction:
     Description: "Flask Demo Lambda Function ARN"
     Value: !GetAtt FlaskDemoFunction.Arn
     Export:
-      Name: FlaskDemoFunctionArn
+      Name: !Sub "${AWS::StackName}-FlaskDemoFunctionArn"
 
   FlaskDemoFunctionLogGroup:
     Description: "CloudWatch Logs group for Lambda Function"
     Value: !Sub "/aws/lambda/${FlaskDemoFunction}"
     Export:
-      Name: FlaskDemoLogGroup
+      Name: !Sub "${AWS::StackName}-FlaskDemoLogGroup"
 
   HealthEndpoint:
     Description: "Health check endpoint URL"

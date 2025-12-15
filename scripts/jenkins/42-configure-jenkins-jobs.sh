@@ -200,7 +200,7 @@ GITHUB_REPO="${PIPELINE_GITHUB_REPO:-${GITHUB_REPO:-https://github.com/liu-chun-
 
 print_header "Phase 5: Jenkins Jobs Configuration"
 echo "Target Jenkins: $TARGET_DESCRIPTION"
-echo "Environment: $ENVIRONMENT"
+echo "Environment: ${ENVIRONMENT:-default}"
 echo "GitHub Repository: $GITHUB_REPO"
 echo ""
 
@@ -214,10 +214,27 @@ if [ "$TARGET" = "ec2" ]; then
     print_info "What are we doing?"
     print_explain "Loading instance metadata saved by script 41-setup-jenkins-ec2.sh"
     print_explain "This file contains: Instance ID, Public IP, Security Group, etc."
-    print_explain "File location: .jenkins-ec2-$ENVIRONMENT.info (in project root)"
-    echo ""
+    DEFAULT_INFO_FILE="$PROJECT_ROOT/.jenkins-ec2.info"
+    ALT_INFO_FILE="$PROJECT_ROOT/.jenkins-ec2${ENVIRONMENT:+-$ENVIRONMENT}.info"
+    if [ -n "$ENVIRONMENT" ]; then
+        INSTANCE_INFO_FILE="$ALT_INFO_FILE"
+    else
+        INSTANCE_INFO_FILE="$DEFAULT_INFO_FILE"
+    fi
 
-    INSTANCE_INFO_FILE="$PROJECT_ROOT/.jenkins-ec2-$ENVIRONMENT.info"
+    # Fallback: if chosen file missing but the other exists, switch with a notice
+    if [ ! -f "$INSTANCE_INFO_FILE" ]; then
+        if [ "$INSTANCE_INFO_FILE" != "$DEFAULT_INFO_FILE" ] && [ -f "$DEFAULT_INFO_FILE" ]; then
+            print_warning "Requested info file not found; falling back to default: $DEFAULT_INFO_FILE"
+            INSTANCE_INFO_FILE="$DEFAULT_INFO_FILE"
+        elif [ "$INSTANCE_INFO_FILE" != "$ALT_INFO_FILE" ] && [ -f "$ALT_INFO_FILE" ]; then
+            print_warning "Default info file not found; using environment-specific file: $ALT_INFO_FILE"
+            INSTANCE_INFO_FILE="$ALT_INFO_FILE"
+        fi
+    fi
+
+    print_explain "File location: $(basename "$INSTANCE_INFO_FILE") (in project root)"
+    echo ""
 
     if [ ! -f "$INSTANCE_INFO_FILE" ]; then
         print_error "Instance information file not found: $INSTANCE_INFO_FILE"
@@ -225,7 +242,7 @@ if [ "$TARGET" = "ec2" ]; then
         print_warning "This means Jenkins EC2 instance hasn't been created yet."
         print_warning "Please run script 41 first to provision Jenkins on EC2:"
         echo ""
-        echo "  ./scripts/jenkins/41-setup-jenkins-ec2.sh --$ENVIRONMENT"
+        echo "  ./scripts/jenkins/41-setup-jenkins-ec2.sh ${ENVIRONMENT:+--$ENVIRONMENT}"
         echo ""
         exit 1
     fi
@@ -560,7 +577,7 @@ echo ""
 print_header "Step 5: Creating Jenkins CI Job (flask-ci)"
 
 print_info "What is the CI (Continuous Integration) job?"
-print_explain "Automatically runs when code is pushed to 'Jeffery' branch"
+print_explain "Automatically runs when code is pushed to the production branch (main)"
 print_explain "Pipeline stages:"
 print_explain "  1. Checkout: Clone repository from GitHub"
 print_explain "  2. Setup: Install Python dependencies"
@@ -572,8 +589,8 @@ echo ""
 print_info "Job configuration details:"
 print_explain "• Job type: Pipeline (flow-definition)"
 print_explain "• Pipeline definition: From SCM (jenkins-pipeline-setting/Jenkinsfile-CI in Git)"
-print_explain "• Trigger: GitHub push to 'Jeffery' branch"
-print_explain "• Parameter: BACKEND_DIR (choose demo-backend or backend)"
+print_explain "• Trigger: GitHub push to production branch (main)"
+print_explain "• Parameter: BACKEND_DIR (defaults to production backend)"
 echo ""
 
 CI_JOB_NAME="${PIPELINE_CI_JOB:-flask-ci}"
@@ -583,7 +600,7 @@ CI_JOB_NAME="${PIPELINE_CI_JOB:-flask-ci}"
 cat > /tmp/flask-ci-config.xml << 'CI_CONFIG_EOF'
 <?xml version='1.1' encoding='UTF-8'?>
 <flow-definition plugin="workflow-job@2.40">
-  <description>Flask CI Pipeline - Runs on Jeffery branch for development testing</description>
+  <description>Flask CI Pipeline - Runs on production branch (main)</description>
   <keepDependencies>false</keepDependencies>
   <properties>
     <hudson.model.ParametersDefinitionProperty>
@@ -591,12 +608,12 @@ cat > /tmp/flask-ci-config.xml << 'CI_CONFIG_EOF'
         <hudson.model.ChoiceParameterDefinition>
           <name>BACKEND_DIR</name>
           <description>Which backend to build and test?
-• demo: Flask demo for CI/CD validation
-• production: Production service</description>
+• production: Production backend (default)
+• demo: demo backend</description>
           <choices class="java.util.Arrays$ArrayList">
             <a class="string-array">
-              <string>demo</string>
               <string>production</string>
+              <string>demo</string>
             </a>
           </choices>
         </hudson.model.ChoiceParameterDefinition>
@@ -646,7 +663,7 @@ echo ""
 
 # Replace placeholder with actual GitHub repo URL
 sed -i.bak "s|GITHUB_REPO_PLACEHOLDER|$GITHUB_REPO|g" /tmp/flask-ci-config.xml
-sed -i.bak "s|Jeffery|${PIPELINE_BRANCH_ALLOWED:-Jeffery}|g" /tmp/flask-ci-config.xml
+sed -i.bak "s|Jeffery|${PIPELINE_BRANCH_ALLOWED:-main}|g" /tmp/flask-ci-config.xml
 rm -f /tmp/flask-ci-config.xml.bak
 
 # Check if job already exists
@@ -701,7 +718,7 @@ echo ""
 print_header "Step 6: Creating Jenkins CD Job (flask-cd)"
 
 print_info "What is the CD (Continuous Deployment) job?"
-print_explain "Automatically deploys to AWS Lambda when code is pushed to 'Jeffery' branch (manual trigger)"
+print_explain "Manual deploy job for production branch (main) when you decide to release"
 print_explain "Pipeline stages:"
 print_explain "  1. Checkout: Clone repository from GitHub"
 print_explain "  2. Validate: Check SAM template syntax"
@@ -712,10 +729,10 @@ echo ""
 print_info "Job configuration details:"
 print_explain "• Job type: Pipeline (flow-definition)"
 print_explain "• Pipeline definition: From SCM (jenkins-pipeline-setting/Jenkinsfile-CD in Git)"
-print_explain "• Trigger: Manual (run when you are ready to deploy from Jeffery)"
+print_explain "• Trigger: Manual (run when you are ready to deploy from production branch)"
 print_explain "• Parameters:"
 print_explain "  - BACKEND_DIR: Choose which backend to deploy"
-print_explain "  - IMAGE_TAG: Specific ECR image tag (or auto-detect latest)"
+print_explain "  - IMAGE_TAG: Specific ECR image tag (or auto-detect newest immutable tag)"
 echo ""
 
 CD_JOB_NAME="${PIPELINE_CD_JOB:-flask-cd}"
@@ -724,7 +741,7 @@ CD_JOB_NAME="${PIPELINE_CD_JOB:-flask-cd}"
 cat > /tmp/flask-cd-config.xml << 'CD_CONFIG_EOF'
 <?xml version='1.1' encoding='UTF-8'?>
 <flow-definition plugin="workflow-job@2.40">
-  <description>Flask CD Pipeline - Deploys to AWS Lambda from Jeffery branch</description>
+  <description>CD Pipeline - Deploys to AWS Lambda</description>
   <keepDependencies>false</keepDependencies>
   <properties>
     <hudson.model.ParametersDefinitionProperty>
@@ -732,18 +749,18 @@ cat > /tmp/flask-cd-config.xml << 'CD_CONFIG_EOF'
         <hudson.model.ChoiceParameterDefinition>
           <name>BACKEND_DIR</name>
           <description>Which backend to deploy?
-• demo: Deploy to demo stack
-• production: Deploy to prod stack</description>
+• production: Deploy to prod stack (default)
+• demo: Deploy to demo stack</description>
           <choices class="java.util.Arrays$ArrayList">
             <a class="string-array">
-              <string>demo</string>
               <string>production</string>
+              <string>demo</string>
             </a>
           </choices>
         </hudson.model.ChoiceParameterDefinition>
         <hudson.model.StringParameterDefinition>
           <name>IMAGE_TAG</name>
-          <description>ECR image tag to deploy (leave empty to auto-detect latest from ECR)</description>
+          <description>ECR image tag to deploy (leave empty to auto-detect newest immutable tag from ECR)</description>
           <defaultValue></defaultValue>
           <trim>true</trim>
         </hudson.model.StringParameterDefinition>
@@ -776,14 +793,14 @@ cat > /tmp/flask-cd-config.xml << 'CD_CONFIG_EOF'
 CD_CONFIG_EOF
 
 print_info "XML configuration differences from CI job:"
-print_explain "• Branch: */main (not */Jeffery) - production branch"
+print_explain "• Branch: */${PIPELINE_BRANCH_ALLOWED:-main} - production branch"
 print_explain "• scriptPath: jenkins-pipeline-setting/Jenkinsfile-CD (not Jenkinsfile-CI)"
 print_explain "• Extra parameter: IMAGE_TAG (allows deploying specific versions)"
 echo ""
 
 # Replace placeholder with actual GitHub repo URL
 sed -i.bak "s|GITHUB_REPO_PLACEHOLDER|$GITHUB_REPO|g" /tmp/flask-cd-config.xml
-sed -i.bak "s|Jeffery|${PIPELINE_BRANCH_ALLOWED:-Jeffery}|g" /tmp/flask-cd-config.xml
+sed -i.bak "s|Jeffery|${PIPELINE_BRANCH_ALLOWED:-main}|g" /tmp/flask-cd-config.xml
 rm -f /tmp/flask-cd-config.xml.bak
 
 # Check if job already exists
@@ -829,7 +846,7 @@ print_info "How it works:"
 print_explain "1. Developer pushes code to GitHub"
 print_explain "2. GitHub sends HTTP POST to Jenkins webhook URL"
 print_explain "3. Jenkins receives push notification"
-print_explain "4. Jenkins checks which branch was pushed (Jeffery or main)"
+print_explain "4. Jenkins checks which branch was pushed (builds only run for production branch)"
 print_explain "5. Jenkins triggers CI automatically; deployments use the manual flask-cd job"
 echo ""
 
@@ -875,7 +892,7 @@ if [ "$TARGET" = "ec2" ]; then
     echo "4. Click 'Add webhook' to save"
     echo ""
     echo "5. Test webhook:"
-    echo "   a. Make a commit to Jeffery branch and push"
+    echo "   a. Make a commit to production branch (main) and push"
 echo "   b. Check GitHub webhook page for delivery (green checkmark)"
 echo "   c. Verify Jenkins CI job was triggered automatically (flask-cd remains manual)"
     echo ""
@@ -903,19 +920,19 @@ echo ""
 
 print_success "Jobs Created:"
 echo ""
-echo "  1. CI Job (Jeffery branch):"
+echo "  1. CI Job (production branch):"
 echo "     URL: $JENKINS_URL/job/$CI_JOB_NAME/"
-echo "     • Triggers: Git push to Jeffery branch (via GitHub webhook)"
+echo "     • Triggers: Git push to production branch (main) via GitHub webhook"
 echo "     • Pipeline: jenkins-pipeline-setting/Jenkinsfile-CI (version controlled in Git)"
-echo "     • Purpose: Test → Build → Push Docker image to ECR"
-echo "     • Parameter: BACKEND_DIR (demo-backend or backend)"
+echo "     • Purpose: Test → Build → Push Docker image to ECR (production backend default)"
+echo "     • Parameter: BACKEND_DIR (production default; demo available if run manually)"
 echo ""
-echo "  2. CD Job (Jeffery branch):"
+echo "  2. CD Job (production branch, manual trigger):"
 echo "     URL: $JENKINS_URL/job/$CD_JOB_NAME/"
-echo "     • Triggers: Git push to Jeffery branch (via GitHub webhook)"
+echo "     • Trigger: Manual run after validating CI image"
 echo "     • Pipeline: jenkins-pipeline-setting/Jenkinsfile-CD (version controlled in Git)"
 echo "     • Purpose: Validate → Deploy → Verify Lambda deployment"
-echo "     • Parameters: BACKEND_DIR, IMAGE_TAG (optional, auto-detects latest)"
+echo "     • Parameters: BACKEND_DIR (production default), IMAGE_TAG (optional, auto-detects newest immutable tag)"
 echo ""
 
 print_header "Next Steps (Phase 6: Jenkins Pipeline Testing)"
@@ -954,7 +971,7 @@ echo "b. Click 'Build with Parameters'"
 echo ""
 echo "c. Configure parameters:"
 echo "   BACKEND_DIR: demo-backend"
-echo "   IMAGE_TAG: (leave empty to auto-detect latest from ECR)"
+echo "   IMAGE_TAG: (leave empty to auto-detect newest immutable tag)"
 echo ""
 echo "d. Click 'Build' button"
 echo ""
