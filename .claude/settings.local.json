@@ -1,43 +1,9 @@
 {
   "permissions": {
     "allow": [
-      "Bash(python3 -m venv:*)",
-      "Bash(.venvScriptsactivate)",
-      "Bash(pip install:*)",
-      "Bash(pytest:*)",
-      "Bash(python -m venv:*)",
-      "Bash(.venvScriptspython.exe -m pip install -r requirements.txt)",
-      "Bash(.venv/Scripts/python.exe:*)",
-      "Bash(bash scripts/local/test-local.sh:*)",
-      "Bash(bash:*)",
-      "Bash(docker build:*)",
-      "Bash(test:*)",
-      "Bash(curl:*)",
-      "Bash(chmod:*)",
-      "Bash(docker run:*)",
-      "Bash(netstat:*)",
-      "Bash(findstr:*)",
-      "Bash(docker logs:*)",
-      "Bash(python:*)",
-      "Bash(git checkout:*)",
-      "Bash(wsl bash -c \"cd ''/mnt/d/ncu/雲端/AWS_final_project/AWS_final_project-Jeffery_2'' && bash scripts/local/test-local.sh --prod\")",
-      "Bash(wsl bash:*)",
-      "Bash(git restore:*)",
-      "Bash(.venvScriptspython.exe -m pip install -q -r requirements.txt)",
-      "WebSearch",
-      "Bash(docker start:*)",
-      "Bash(docker stop:*)",
-      "Bash(docker rm:*)",
-      "Bash(docker restart:*)",
-      "Bash(python3:*)",
-      "Bash(git stash:*)",
-      "Bash(git add:*)",
-      "Bash(git commit -m \"$(cat <<''EOF''\nIntegrate NeoYeh AI generation backend with Discord bot testing\n\n- Add AI image generation (HuggingFace Stable Diffusion XL)\n- Add AI music generation (Suno API with async webhook)\n- Add DynamoDB history tracking (optional/non-fatal)\n- Add S3 file storage with presigned URLs\n- Add comprehensive test suite (17 tests: 12 unit + 5 integration)\n- Add Discord bot client for testing API endpoints\n- Add automated startup scripts (Bash + Windows batch)\n- Add complete backend documentation (BACKEND_DOCUMENTATION.md)\n- Add Discord bot testing guide (DISCORD_BOT_TESTING_GUIDE.md)\n- Update Docker timeout to 300s for AI API calls\n- Make DynamoDB insert non-fatal for better UX\n- Fix Suno API error handling for null data\n- Fix Discord embed length issues with URL truncation\n- All tests passing (17/17)\n\n🤖 Generated with [Claude Code](https://claude.com/claude-code)\n\nCo-Authored-By: Claude Sonnet 4.5 <noreply@anthropic.com>\nEOF\n)\")",
-      "Bash(git push:*)",
-      "Bash(git fetch:*)",
-      "Bash(git merge-base:*)",
-      "Bash(xargs:*)",
-      "Bash(git merge:*)"
-    ]
+      "Bash(find . -type f \\(-name *.jpeg -o -name *.jpg -o -name *.png -o -name *.gif \\))"
+    ],
+    "deny": [],
+    "ask": []
   }
 }
