@@ -282,6 +282,71 @@ See [BRANCH_STRATEGY.md](../BRANCH_STRATEGY.md) for complete details.
 
 ## AWS Deployment
 
+### AWS Services for CI/CD
+
+The CI/CD pipeline uses the following AWS services:
+
+#### Amazon ECR (Elastic Container Registry)
+
+**Purpose:** Docker image storage and management
+
+- Repository: `aws-lab-flask-demo`
+- Stores versioned Docker images (tagged with build numbers)
+- Integrated with Lambda for container deployment
+- Lifecycle policies can auto-delete old images
+
+**CI Pipeline Usage:**
+```bash
+# Login to ECR
+aws ecr get-login-password | docker login --username AWS --password-stdin $ECR_URI
+
+# Push image
+docker push $ECR_URI:$BUILD_NUMBER
+docker push $ECR_URI:latest
+```
+
+#### AWS Lambda (Container Runtime)
+
+**Purpose:** Serverless execution of the Flask application
+
+- Runs Docker containers from ECR
+- No server management required
+- Pay-per-request pricing
+- Auto-scales with traffic
+- 300s timeout for AI operations
+
+#### Amazon API Gateway
+
+**Purpose:** HTTP endpoint management
+
+- Creates public URLs for Lambda functions
+- Routes: `/health`, `/generate-image`, `/generate-audio`, `/history`
+- Handles CORS, throttling, and request validation
+- Provides the public API URL
+
+#### Amazon CloudWatch
+
+**Purpose:** Logging, monitoring, and debugging
+
+- Automatic Lambda log collection
+- Log groups: `/aws/lambda/{function-name}`
+- Metrics: invocations, errors, duration, memory
+- Useful for debugging deployment issues
+
+**View Logs:**
+```bash
+aws logs tail /aws/lambda/flask-prod-backend-FlaskDemoFunction-xxx --follow
+```
+
+#### Amazon EC2
+
+**Purpose:** Jenkins CI/CD server hosting
+
+- Runs Jenkins for automated builds
+- Receives GitHub webhook triggers
+- Executes CI/CD pipeline scripts
+- Must have Docker installed
+
 ### Required AWS Resources
 
 | Resource | Purpose |

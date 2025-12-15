@@ -289,6 +289,18 @@ graph TB
     EC2 --> ECR
 ```
 
+### AWS Services Explained
+
+| Service | Description |
+|---------|-------------|
+| **Amazon ECR** | Elastic Container Registry - A fully managed Docker container registry that stores, manages, and deploys container images. We push our Flask application Docker images here for Lambda to pull. |
+| **AWS Lambda** | Serverless compute service that runs code without provisioning servers. Our Flask app runs as a container-based Lambda function, scaling automatically with demand. |
+| **API Gateway** | Managed service for creating and publishing APIs. Routes HTTP requests to Lambda functions, handling `/health`, `/generate-image`, `/generate-audio`, and `/history` endpoints. |
+| **Amazon S3** | Simple Storage Service - Object storage for generated images and audio files. Provides presigned URLs for secure, time-limited file downloads. |
+| **Amazon DynamoDB** | Fully managed NoSQL database. Stores user generation history with `user_id` as partition key and `record_id` as sort key. |
+| **Amazon CloudWatch** | Monitoring and observability service. Collects Lambda logs, tracks metrics (invocations, errors, duration), and enables debugging. |
+| **Amazon EC2** | Elastic Compute Cloud - Virtual servers in the cloud. Hosts our Jenkins CI/CD server for automated builds and deployments. |
+
 ### SAM Template Resources
 
 | Resource | Type | Description |
