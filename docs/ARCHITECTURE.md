@@ -9,6 +9,7 @@ This document provides visual architecture diagrams for the AWS Final Project, c
 - [Data Flow Diagrams](#data-flow-diagrams)
 - [CI/CD Pipeline Architecture](#cicd-pipeline-architecture)
 - [AWS Infrastructure](#aws-infrastructure)
+- [Screenshots](#screenshots)
 
 ---
 
@@ -342,6 +343,54 @@ AWS_final_project/
     ├── APPLICATION.md         # Backend docs
     └── CI_CD.md               # Pipeline docs
 ```
+
+---
+
+## Screenshots
+
+### Jenkins Dashboard
+
+![Jenkins Dashboard](../images/jenkins.jpeg)
+
+### CI/CD Pipelines
+
+**CI Pipeline (Build & Push)**
+
+![CI Pipeline](../images/ci-pipeline.jpeg)
+
+**CD Pipeline (Deploy & Verify)**
+
+![CD Pipeline](../images/cd-pipeline.jpeg)
+
+### AWS Infrastructure
+
+**EC2 Instance (Jenkins Server)**
+
+![EC2 Instance](../images/ec2.jpeg)
+
+**ECR Repository (Container Images)**
+
+![ECR Repository](../images/ECR.jpeg)
+
+### Monitoring
+
+**CloudWatch Dashboard**
+
+![CloudWatch Dashboard](../images/cloudwatch.jpeg)
+
+**CloudWatch Logs**
+
+![CloudWatch Logs](../images/cloudwatch-logs.jpeg)
+
+**CloudWatch Metrics**
+
+![CloudWatch Metrics](../images/cloudwatch-metrics.jpeg)
+
+### GitHub Integration
+
+**Webhook Configuration**
+
+![GitHub Webhook](../images/github-webhook.jpeg)
 
 ---
 
