@@ -53,8 +53,3 @@ discord.log
 
 # 環境變數
 *.env
-
-**/Dockerfile
-
-# 圖片檔
-**/pdf
