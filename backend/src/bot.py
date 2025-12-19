@@ -9,8 +9,7 @@ import requests
 import asyncio
 
 load_dotenv()
-DC_token ="MTQzNTI3MDk4NDc4NDU0Nzg0Mg.GInp2b.JOi1Ke8hUGHyH_W0tp2q-D0WCtFiDglyUCZi3U"
-# DC_token = os.getenv('DISCORD_TOKEN')
+DC_token = os.getenv('DISCORD_TOKEN')
 # FLASK_API_URL = os.getenv('FLASK_API_URL', 'http://localhost:5000')
 FLASK_API_URL = "https://xpapysqd2i.execute-api.us-east-1.amazonaws.com/prod"
 

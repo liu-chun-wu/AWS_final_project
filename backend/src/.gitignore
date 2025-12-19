@@ -50,3 +50,11 @@ discord.log
 
 # 壓縮檔案
 *.zip
+
+# 環境變數
+*.env
+
+**/Dockerfile
+
+# 圖片檔
+**/pdf
