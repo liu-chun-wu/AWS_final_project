@@ -54,5 +54,5 @@ discord.log
 # 環境變數
 *.env
 
-API Key.txt
+../API Key.txt
 .env
