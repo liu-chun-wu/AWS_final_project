@@ -1,4 +1,4 @@
-# AWS Final Project
+# ArtTune - AI Avatar & Music Generator on Discord
 
 A comprehensive cloud computing project combining an **AI Generation Application** with a complete **CI/CD Pipeline** for automated deployment to AWS Lambda.
 
